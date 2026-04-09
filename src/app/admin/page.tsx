@@ -177,7 +177,7 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
             borderRadius:2, padding:'3px 9px', fontSize:11,
             color:vestido.vendido ? terra : olive,
             cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
-          }}>{vestido.vendido ? '↩ Devolver' : '✓ Vendido'}</button>
+          }}>{vestido.vendido ? '↩ Devolver' : '✓ Vender 1'}</button>
         </td>
       </tr>
       {expanded && (
@@ -278,7 +278,7 @@ function VestidoCard({ vestido, config, onUpdate, onToggleVendido, expanded, onT
         border:`1px solid ${vestido.vendido ? terra : gold}`,
         background: vestido.vendido ? 'transparent' : gold,
         color: vestido.vendido ? terra : white,
-      }}>{vestido.vendido ? '↩ Devolver' : '✓ Vendido'}</button>
+      }}>{vestido.vendido ? '↩ Devolver' : '✓ Vender 1'}</button>
 
       {/* Toggle expansión */}
       <button onClick={onToggleExpand} style={{
@@ -371,8 +371,12 @@ export default function AdminPage() {
   }
 
   async function toggleVendido(v: any) {
-    await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:v.id,vendido:!v.vendido}) })
-    setVestidos(p=>p.map(x=>x.id===v.id?{...x,vendido:!x.vendido}:x))
+    const accion = v.vendido ? 'devolver' : 'vender'
+    const res  = await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:v.id, accion }) })
+    const data = await res.json()
+    if (data.success) {
+      setVestidos(p => p.map(x => x.id===v.id ? { ...x, cantidad:data.cantidad, vendido:data.vendido, vendido_at:data.vendido_at } : x))
+    }
   }
 
   async function updateCampo(id: string, campo: string, valor: string) {
