@@ -375,6 +375,9 @@ export default function AdminPage() {
   const [isMobile, setIsMobile]     = useState(false)
   const [sortCol, setSortCol]       = useState<string|null>(null)
   const [sortDir, setSortDir]       = useState<'asc'|'desc'>('asc')
+  const [colFiltros, setColFiltros] = useState<Record<string, string>>({})
+  const [showFiltro, setShowFiltro] = useState<string|null>(null)
+  const [dropPos, setDropPos]       = useState<{top:number, left:number}>({top:0, left:0})
   const debRef = useRef<ReturnType<typeof setTimeout>|null>(null)
 
   useEffect(() => {
@@ -383,6 +386,16 @@ export default function AdminPage() {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  useEffect(() => {
+    if (!showFiltro) return
+    function onDown(e: MouseEvent) {
+      const dp = document.getElementById('col-filter-dropdown')
+      if (dp && !dp.contains(e.target as Node)) setShowFiltro(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [showFiltro])
 
   function load() {
     setLoading(true)
@@ -427,19 +440,42 @@ export default function AdminPage() {
   // Filtrado
   const q = filtro.toLowerCase()
   const filtrados = vestidos.filter(v => {
-    const mQ = !q || v.style_number?.toLowerCase().includes(q) || v.color?.toLowerCase().includes(q) || v.descripcion?.toLowerCase().includes(q) || v.tienda?.toLowerCase().includes(q)
-    const mT = !tiendaF || v.tienda === tiendaF
-    const mE = estado==='todos' || (estado==='disponibles' ? !v.vendido : v.vendido)
-    return mQ && mT && mE
+    if (q && !v.style_number?.toLowerCase().includes(q) && !v.color?.toLowerCase().includes(q) && !v.descripcion?.toLowerCase().includes(q) && !v.tienda?.toLowerCase().includes(q)) return false
+    if (tiendaF && v.tienda !== tiendaF) return false
+    if (estado === 'disponibles' && v.vendido) return false
+    if (estado === 'vendidos' && !v.vendido) return false
+    for (const [col, val] of Object.entries(colFiltros)) {
+      if (!val) continue
+      if (col === 'talla' && v.talla !== val) return false
+      if (col === 'color' && !v.color?.toLowerCase().includes(val.toLowerCase())) return false
+      if (col === 'tienda' && v.tienda !== val) return false
+      if (col === 'style_number' && !v.style_number?.toLowerCase().includes(val.toLowerCase())) return false
+      if (col === 'precio_min' && (parseFloat(v.precio_usd)||0) < parseFloat(val)) return false
+      if (col === 'precio_max' && (parseFloat(v.precio_usd)||0) > parseFloat(val)) return false
+    }
+    return true
   })
 
   // Tiendas dinámicas
   const tiendas = Array.from(new Set(vestidos.map(v=>v.tienda).filter(Boolean))).sort()
 
+  // Valores únicos para dropdowns de filtro por columna
+  const tallasUnicas   = Array.from(new Set(vestidos.map(v=>v.talla).filter(Boolean))).sort((a,b)=>parseInt(a)-parseInt(b))
+  const coloresUnicos  = Array.from(new Set(vestidos.map(v=>v.color).filter(Boolean))).sort()
+  const tiendasUnicas  = Array.from(new Set(vestidos.map(v=>v.tienda).filter(Boolean))).sort()
+  const stylesUnicos   = Array.from(new Set(vestidos.map(v=>v.style_number).filter(Boolean))).sort()
+
   // Ordenamiento
   function handleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortCol(col); setSortDir('asc') }
+  }
+
+  function openFiltro(col: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setDropPos({ top: rect.bottom + 4, left: rect.left })
+    setShowFiltro(prev => prev === col ? null : col)
   }
   const ordenados = [...filtrados].sort((a, b) => {
     if (!sortCol) return 0
@@ -586,8 +622,29 @@ export default function AdminPage() {
           ))}
         </div>
 
-        <div style={{ fontSize:11, color:grayM, marginLeft:'auto', flexShrink:0 }}>{filtrados.length} registros</div>
+        <div style={{ fontSize:11, color:grayM, marginLeft:'auto', flexShrink:0 }}>{ordenados.length} registros</div>
       </div>
+
+      {/* Pills de filtros por columna activos */}
+      {Object.values(colFiltros).some(v=>v) && (
+        <div style={{ flexShrink:0, padding:'6px 16px', background:cream, borderBottom:`1px solid ${grayL}`, display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+          {(['talla','color','tienda','style_number'] as const).map(col => colFiltros[col] ? (
+            <span key={col} style={{ display:'inline-flex', alignItems:'center', gap:4, background:`${gold}12`, border:`1px solid ${gold}44`, borderRadius:20, padding:'3px 10px', fontSize:11, color:gold }}>
+              {col==='talla'?'Talla':col==='color'?'Color':col==='tienda'?'Tienda':'Style'}: {colFiltros[col]}
+              <button onClick={()=>setColFiltros(p=>{const n={...p};delete n[col];return n})}
+                style={{ background:'none', border:'none', cursor:'pointer', color:gold, fontSize:13, lineHeight:1, padding:0 }}>×</button>
+            </span>
+          ) : null)}
+          {(colFiltros.precio_min||colFiltros.precio_max) && (
+            <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:`${gold}12`, border:`1px solid ${gold}44`, borderRadius:20, padding:'3px 10px', fontSize:11, color:gold }}>
+              Precio: {colFiltros.precio_min ? `$${colFiltros.precio_min}` : '$0'}–{colFiltros.precio_max ? `$${colFiltros.precio_max}` : '∞'}
+              <button onClick={()=>setColFiltros(p=>{const n={...p};delete n.precio_min;delete n.precio_max;return n})}
+                style={{ background:'none', border:'none', cursor:'pointer', color:gold, fontSize:13, lineHeight:1, padding:0 }}>×</button>
+            </span>
+          )}
+          <button onClick={()=>setColFiltros({})} style={{ fontSize:11, color:terra, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>Limpiar todo</button>
+        </div>
+      )}
 
       {/* Contenido — única zona con scroll */}
       <div style={{ flex:1, overflowY:'auto', overflowX: isMobile ? 'hidden' : 'auto' }}>
@@ -596,7 +653,7 @@ export default function AdminPage() {
             <div style={{ fontFamily:serif, fontSize:18, marginBottom:6 }}>Cargando inventario</div>
             <div style={{ fontSize:12, letterSpacing:'.08em' }}>Por favor espera...</div>
           </div>
-        ) : filtrados.length === 0 ? (
+        ) : ordenados.length === 0 ? (
           <div style={{ textAlign:'center', padding:'72px 0', color:grayM }}>
             <div style={{ fontFamily:serif, fontSize:20, marginBottom:8, color:text }}>Sin resultados</div>
             <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
@@ -621,26 +678,40 @@ export default function AdminPage() {
             <thead style={{ position:'sticky', top:0, zIndex:50, background:cream }}>
               <tr>
                 {([
-                  ['Style #','style_number'],['Tienda','tienda'],['Color','color'],['Talla','talla'],
-                  ['Disp.','cantidad'],['Vend.','cantidad_vendida'],['Precio USD','precio_usd'],
-                  ['T/C',null],['Mark%',null],['Cargo',null],
-                  ['Costo MXN','costo_mxn'],['Precio Venta','precio_venta'],['Utilidad','utilidad'],
-                  ['Estado','vendido'],['Acción',null],
-                ] as [string, string|null][]).map(([h, col], i) => {
-                  const active = col && sortCol === col
-                  const arrow = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : (col ? ' ↕' : '')
+                  ['Style #','style_number',true],['Tienda','tienda',true],['Color','color',true],['Talla','talla',true],
+                  ['Disp.','cantidad',false],['Vend.','cantidad_vendida',false],['Precio USD','precio_usd',true],
+                  ['T/C',null,false],['Mark%',null,false],['Cargo',null,false],
+                  ['Costo MXN','costo_mxn',false],['Precio Venta','precio_venta',false],['Utilidad','utilidad',false],
+                  ['Estado','vendido',false],['Acción',null,false],
+                ] as [string, string|null, boolean][]).map(([h, col, filterable], i) => {
+                  const sortActive = col && sortCol === col
+                  const arrow = sortActive ? (sortDir === 'asc' ? '↑' : '↓') : (col ? '↕' : '')
+                  const filterKey = col === 'precio_usd' ? 'precio_usd' : col
+                  const hasFilter = col === 'precio_usd'
+                    ? !!(colFiltros.precio_min || colFiltros.precio_max)
+                    : !!(col && colFiltros[col])
                   return (
                     <th key={i}
-                      onClick={col ? () => handleSort(col) : undefined}
                       style={{
                         padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
                         letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
                         borderBottom:`2px solid ${gold}`,
                         whiteSpace:'nowrap', userSelect:'none',
-                        cursor: col ? 'pointer' : 'default',
                         ...(i===0 ? {position:'sticky',left:0,background:cream,zIndex:51,borderRight:`1px solid ${grayL}`} : {}),
                       }}>
-                      {h}<span style={{ color: active ? gold : grayL, fontSize:10 }}>{arrow}</span>
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:3 }}>
+                        <span onClick={col ? ()=>handleSort(col) : undefined}
+                          style={{ cursor: col ? 'pointer' : 'default', display:'inline-flex', alignItems:'center', gap:2 }}>
+                          {h}
+                          {col && <span style={{ color: sortActive ? gold : grayL, fontSize:9 }}>{arrow}</span>}
+                        </span>
+                        {filterable && filterKey && (
+                          <button onClick={e=>openFiltro(filterKey, e)}
+                            style={{ background:'none', border:'none', cursor:'pointer', padding:'0 1px', lineHeight:1, color: hasFilter ? gold : grayL, fontSize:8 }}>
+                            ▼
+                          </button>
+                        )}
+                      </span>
                     </th>
                   )
                 })}
@@ -674,6 +745,71 @@ export default function AdminPage() {
         <Modal title="Aplicar a todos" onClose={()=>setModalCfg(false)}>
           <AplicarGlobalContent config={config} onDone={()=>{ setModalCfg(false); load() }} />
         </Modal>
+      )}
+
+      {/* Dropdown filtro por columna — posición fija sobre todo */}
+      {showFiltro && (
+        <div id="col-filter-dropdown" onMouseDown={e=>e.stopPropagation()} style={{
+          position:'fixed', top:dropPos.top, left:dropPos.left, zIndex:600,
+          background:white, border:`1px solid ${grayL}`, borderRadius:4,
+          boxShadow:'0 4px 20px rgba(0,0,0,.14)', minWidth:190, maxHeight:300,
+          overflowY:'auto',
+        }}>
+          {/* Filtros de texto: lista de valores únicos */}
+          {(['style_number','tienda','color','talla'] as const).includes(showFiltro as any) && (() => {
+            const opts = showFiltro==='talla' ? tallasUnicas
+              : showFiltro==='color' ? coloresUnicos
+              : showFiltro==='tienda' ? tiendasUnicas
+              : stylesUnicos
+            return (
+              <>
+                <div style={{ maxHeight:230, overflowY:'auto' }}>
+                  {opts.map(opt => {
+                    const sel = colFiltros[showFiltro] === opt
+                    return (
+                      <div key={opt}
+                        onClick={()=>setColFiltros(p=>({...p,[showFiltro]: p[showFiltro]===opt ? '' : opt}))}
+                        style={{ padding:'7px 14px', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:8,
+                          background: sel ? `${gold}10` : 'transparent', color: sel ? gold : text }}>
+                        <span style={{ width:12, height:12, border:`1.5px solid ${sel?gold:grayM}`, borderRadius:2,
+                          display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0,
+                          background: sel ? gold : 'transparent' }}>
+                          {sel && <span style={{ color:white, fontSize:9, lineHeight:1 }}>✓</span>}
+                        </span>
+                        {opt}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ borderTop:`1px solid ${grayL}`, padding:'6px 12px' }}>
+                  <button onClick={()=>{setColFiltros(p=>{const n={...p};delete n[showFiltro];return n});setShowFiltro(null)}}
+                    style={{ fontSize:11, color:terra, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit' }}>Limpiar</button>
+                </div>
+              </>
+            )
+          })()}
+          {/* Filtro numérico: precio_usd */}
+          {showFiltro==='precio_usd' && (
+            <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              <div>
+                <div style={{ fontSize:9, color:grayM, fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:4 }}>Min USD</div>
+                <input type="number" step="1" placeholder="0"
+                  value={colFiltros['precio_min']||''}
+                  onChange={e=>setColFiltros(p=>({...p,precio_min:e.target.value}))}
+                  style={{ width:'100%', border:`1px solid ${grayL}`, borderRadius:2, padding:'6px 8px', fontSize:12, fontFamily:'system-ui', outline:'none' }} />
+              </div>
+              <div>
+                <div style={{ fontSize:9, color:grayM, fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:4 }}>Max USD</div>
+                <input type="number" step="1" placeholder="∞"
+                  value={colFiltros['precio_max']||''}
+                  onChange={e=>setColFiltros(p=>({...p,precio_max:e.target.value}))}
+                  style={{ width:'100%', border:`1px solid ${grayL}`, borderRadius:2, padding:'6px 8px', fontSize:12, fontFamily:'system-ui', outline:'none' }} />
+              </div>
+              <button onClick={()=>{setColFiltros(p=>{const n={...p};delete n.precio_min;delete n.precio_max;return n});setShowFiltro(null)}}
+                style={{ fontSize:11, color:terra, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', textAlign:'left', padding:0 }}>Limpiar</button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
