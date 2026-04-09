@@ -272,9 +272,3 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-
-const th = {
-  bg: '#0D0D0D', surface: '#161616', surfaceAlt: '#1E1E1E',
-  border: '#2A2A2A', gold: '#C9A84C', text: '#F0EDE8',
-  muted: '#888880', success: '#4CAF7D', error: '#E05A4A',
-}
