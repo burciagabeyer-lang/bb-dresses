@@ -120,44 +120,50 @@ export async function PUT(request: NextRequest) {
 }
 
 // PATCH /api/vestidos — vender o devolver una pieza
-// accion: 'vender' → cantidad-1; si llega a 0, vendido=true
-// accion: 'devolver' → cantidad+1, vendido=false
+// accion: 'vender'   → cantidad-1, cantidad_vendida+1; vendido=true si cantidad llega a 0
+// accion: 'devolver' → cantidad+1, cantidad_vendida-1; vendido=false
 export async function PATCH(request: NextRequest) {
   try {
     const { id, accion } = await request.json()
     if (!id || !accion) return NextResponse.json({ error: 'id y accion requeridos' }, { status: 400 })
 
-    // Leer cantidad actual desde DB
-    const { data: current, error: readError } = await supabase
+    const { data: v, error: readError } = await supabase
       .from('vestidos')
-      .select('cantidad')
+      .select('cantidad, cantidad_vendida')
       .eq('id', id)
       .single()
     if (readError) throw readError
 
-    const cantidadActual = parseInt(current.cantidad) || 0
-    let update: Record<string, any>
-
     if (accion === 'vender') {
-      const nuevaCantidad = Math.max(0, cantidadActual - 1)
-      update = {
-        cantidad:   nuevaCantidad,
-        vendido:    nuevaCantidad === 0,
-        vendido_at: nuevaCantidad === 0 ? new Date().toISOString() : null,
-      }
-    } else if (accion === 'devolver') {
-      update = {
-        cantidad:   cantidadActual + 1,
-        vendido:    false,
-        vendido_at: null,
-      }
-    } else {
-      return NextResponse.json({ error: 'accion debe ser vender o devolver' }, { status: 400 })
+      const nuevaCantidad = Math.max(0, (v.cantidad || 0) - 1)
+      const nuevaVendida  = (v.cantidad_vendida || 0) + 1
+      const { error } = await supabase.from('vestidos').update({
+        cantidad:         nuevaCantidad,
+        cantidad_vendida: nuevaVendida,
+        vendido:          nuevaCantidad === 0,
+        vendido_at:       nuevaCantidad === 0 ? new Date().toISOString() : null,
+      }).eq('id', id)
+      if (error) throw error
+      return NextResponse.json({ success: true, cantidad: nuevaCantidad, cantidad_vendida: nuevaVendida, vendido: nuevaCantidad === 0 })
     }
 
-    const { error } = await supabase.from('vestidos').update(update).eq('id', id)
-    if (error) throw error
-    return NextResponse.json({ success: true, ...update })
+    if (accion === 'devolver') {
+      if ((v.cantidad_vendida || 0) === 0) {
+        return NextResponse.json({ error: 'No hay piezas vendidas para devolver' }, { status: 400 })
+      }
+      const nuevaCantidad = (v.cantidad || 0) + 1
+      const nuevaVendida  = Math.max(0, (v.cantidad_vendida || 0) - 1)
+      const { error } = await supabase.from('vestidos').update({
+        cantidad:         nuevaCantidad,
+        cantidad_vendida: nuevaVendida,
+        vendido:          false,
+        vendido_at:       null,
+      }).eq('id', id)
+      if (error) throw error
+      return NextResponse.json({ success: true, cantidad: nuevaCantidad, cantidad_vendida: nuevaVendida, vendido: false })
+    }
+
+    return NextResponse.json({ error: 'accion debe ser vender o devolver' }, { status: 400 })
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -64,10 +64,11 @@ function KPI({ label, value, valueColor }: { label: string; value: string; value
 }
 
 // ── Fila de inventario (con estado local para precio_usd) ─────
-function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded, onToggleExpand }: {
+function VestidoRow({ vestido, config, idx, onUpdate, onVender, onDevolver, expanded, onToggleExpand }: {
   vestido: any; config: any; idx: number;
   onUpdate: (id: string, campo: string, valor: string) => void;
-  onToggleVendido: (v: any) => void;
+  onVender: (v: any) => void;
+  onDevolver: (v: any) => void;
   expanded: boolean;
   onToggleExpand: () => void;
 }) {
@@ -116,10 +117,11 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
             onClick={e=>e.stopPropagation()}
             style={{ ...ci, textAlign:'center', fontFamily:'monospace', width:44 }} />
         </td>
-        <td style={{ ...td, minWidth:55, textAlign:'center' }}>
-          <input type="number" defaultValue={vestido.cantidad} onBlur={e=>blur('cantidad',e.target.value)}
-            onClick={e=>e.stopPropagation()}
-            style={{ ...ci, textAlign:'center', width:38 }} />
+        <td style={{ ...td, minWidth:70, textAlign:'center' }}>
+          <span style={{ fontFamily:'monospace', fontWeight:600 }}>{vestido.cantidad}</span>
+          {(vestido.cantidad_vendida || 0) > 0 && (
+            <span style={{ fontSize:10, color:terra, marginLeft:4 }}>{vestido.cantidad_vendida}v</span>
+          )}
         </td>
         <td style={{ ...td, minWidth:100 }}>
           <input type="number" step="0.01" value={precio}
@@ -171,13 +173,22 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
             borderRadius:2, padding:'2px 8px', fontSize:10, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase',
           }}>{vestido.vendido ? 'Vendido' : 'Disponible'}</span>
         </td>
-        <td style={{ ...td, minWidth:90 }}>
-          <button onClick={e=>{e.stopPropagation();onToggleVendido(vestido)}} style={{
-            background:'transparent', border:`1px solid ${vestido.vendido ? terra : olive}`,
-            borderRadius:2, padding:'3px 9px', fontSize:11,
-            color:vestido.vendido ? terra : olive,
-            cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
-          }}>{vestido.vendido ? '↩ Devolver' : '✓ Vender 1'}</button>
+        <td style={{ ...td, minWidth:130 }} onClick={e=>e.stopPropagation()}>
+          <div style={{ display:'flex', gap:4 }}>
+            {vestido.cantidad > 0 && (
+              <button onClick={e=>{e.stopPropagation();onVender(vestido)}} style={{
+                background:gold, border:'none', borderRadius:2, padding:'3px 10px',
+                fontSize:11, color:white, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
+              }}>✓ Vender</button>
+            )}
+            {(vestido.cantidad_vendida||0) > 0 && (
+              <button onClick={e=>{e.stopPropagation();onDevolver(vestido)}} style={{
+                background:'transparent', border:`1px solid ${grayM}`, borderRadius:2,
+                padding:'3px 9px', fontSize:11, color:grayM,
+                cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
+              }}>↩ Devolver</button>
+            )}
+          </div>
         </td>
       </tr>
       {expanded && (
@@ -201,10 +212,11 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
 }
 
 // ── Card móvil ────────────────────────────────────────────────
-function VestidoCard({ vestido, config, onUpdate, onToggleVendido, expanded, onToggleExpand }: {
+function VestidoCard({ vestido, config, onUpdate, onVender, onDevolver, expanded, onToggleExpand }: {
   vestido: any; config: any;
   onUpdate: (id: string, campo: string, valor: string) => void;
-  onToggleVendido: (v: any) => void;
+  onVender: (v: any) => void;
+  onDevolver: (v: any) => void;
   expanded: boolean;
   onToggleExpand: () => void;
 }) {
@@ -248,12 +260,16 @@ function VestidoCard({ vestido, config, onUpdate, onToggleVendido, expanded, onT
           border: `1px solid ${vestido.vendido ? terra : olive}55`,
           borderRadius:10, padding:'2px 10px', fontSize:10, fontWeight:700,
           letterSpacing:'.05em', textTransform:'uppercase',
-        }}>{vestido.vendido ? 'Vendido' : 'Disponible'}</span>
+        }}>{vestido.vendido ? 'Agotado' : 'Disponible'}</span>
       </div>
 
-      {/* Color · Talla · Tienda */}
+      {/* Color · Talla · Tienda · Cant. */}
       <div style={{ fontSize:12, color:grayM, marginBottom:10 }}>
         {[vestido.color, vestido.talla, vestido.tienda].filter(Boolean).join(' · ')}
+        <span style={{ marginLeft:8, fontFamily:'monospace', fontWeight:600, color:text }}>{vestido.cantidad}</span>
+        {(vestido.cantidad_vendida||0) > 0 && (
+          <span style={{ fontSize:11, color:terra, marginLeft:4 }}>/ {vestido.cantidad_vendida}v</span>
+        )}
       </div>
 
       <div style={{ height:1, background:grayL, marginBottom:10 }} />
@@ -271,14 +287,22 @@ function VestidoCard({ vestido, config, onUpdate, onToggleVendido, expanded, onT
 
       <div style={{ height:1, background:grayL, marginBottom:10 }} />
 
-      {/* Botón vendido full-width */}
-      <button onClick={e=>{ e.stopPropagation(); onToggleVendido(vestido) }} style={{
-        width:'100%', padding:'11px', fontSize:13, fontWeight:700, borderRadius:6,
-        cursor:'pointer', fontFamily:'inherit',
-        border:`1px solid ${vestido.vendido ? terra : gold}`,
-        background: vestido.vendido ? 'transparent' : gold,
-        color: vestido.vendido ? terra : white,
-      }}>{vestido.vendido ? '↩ Devolver' : '✓ Vender 1'}</button>
+      {/* Botones vender / devolver */}
+      <div style={{ display:'flex', gap:8 }}>
+        {vestido.cantidad > 0 && (
+          <button onClick={e=>{ e.stopPropagation(); onVender(vestido) }} style={{
+            flex:1, padding:'11px', fontSize:13, fontWeight:700, borderRadius:6,
+            cursor:'pointer', fontFamily:'inherit', border:'none', background:gold, color:white,
+          }}>✓ Vender</button>
+        )}
+        {(vestido.cantidad_vendida||0) > 0 && (
+          <button onClick={e=>{ e.stopPropagation(); onDevolver(vestido) }} style={{
+            flex:1, padding:'11px', fontSize:13, fontWeight:700, borderRadius:6,
+            cursor:'pointer', fontFamily:'inherit',
+            border:`1px solid ${grayM}`, background:'transparent', color:grayM,
+          }}>↩ Devolver</button>
+        )}
+      </div>
 
       {/* Toggle expansión */}
       <button onClick={onToggleExpand} style={{
@@ -370,12 +394,19 @@ export default function AdminPage() {
     debRef.current = setTimeout(() => setFiltro(val), 300)
   }
 
-  async function toggleVendido(v: any) {
-    const accion = v.vendido ? 'devolver' : 'vender'
-    const res  = await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:v.id, accion }) })
+  async function vender(v: any) {
+    const res  = await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:v.id, accion:'vender' }) })
     const data = await res.json()
     if (data.success) {
-      setVestidos(p => p.map(x => x.id===v.id ? { ...x, cantidad:data.cantidad, vendido:data.vendido, vendido_at:data.vendido_at } : x))
+      setVestidos(p => p.map(x => x.id===v.id ? { ...x, cantidad:data.cantidad, cantidad_vendida:data.cantidad_vendida, vendido:data.vendido } : x))
+    }
+  }
+
+  async function devolver(v: any) {
+    const res  = await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:v.id, accion:'devolver' }) })
+    const data = await res.json()
+    if (data.success) {
+      setVestidos(p => p.map(x => x.id===v.id ? { ...x, cantidad:data.cantidad, cantidad_vendida:data.cantidad_vendida, vendido:data.vendido } : x))
     }
   }
 
@@ -397,10 +428,10 @@ export default function AdminPage() {
   const tiendas = Array.from(new Set(vestidos.map(v=>v.tienda).filter(Boolean))).sort()
 
   // KPIs
-  const disp       = vestidos.filter(v=>!v.vendido)
-  const vend       = vestidos.filter(v=>v.vendido)
-  const piezas     = disp.reduce((s,v)=>s+(parseInt(v.cantidad)||1),0)
-  const invertido  = vestidos.reduce((s,v)=>s+(parseFloat(v.precio_usd)||0)*(parseInt(v.cantidad)||1),0)
+  const disp       = vestidos.filter(v=>v.cantidad > 0)
+  const piezas     = vestidos.reduce((s,v)=>s+(parseInt(v.cantidad)||0),0)
+  const vendidas   = vestidos.reduce((s,v)=>s+(parseInt(v.cantidad_vendida)||0),0)
+  const invertido  = vestidos.reduce((s,v)=>s+(parseFloat(v.precio_usd)||0)*(parseInt(v.cantidad)||0),0)
   function rowFinancials(v: any) {
     const usd  = parseFloat(v.precio_usd) || 0
     const tc   = parseFloat(v.tipo_cambio_custom ?? config?.tipo_cambio_usd_mxn  ?? 0)
@@ -455,7 +486,7 @@ export default function AdminPage() {
             <KPI label="Invertido" value={fmtUSD(invertido)} />
             {config && <KPI label="Valor venta" value={fmtMXN(valorVenta)} />}
             {config && <KPI label="Utilidad" value={fmtMXN(utilidadTotal)} valueColor="#6B7B4A" />}
-            <KPI label="Vendidos" value={String(vend.length)} />
+            <KPI label="Vendidas" value={`${vendidas} piezas`} />
           </div>
         )}
         {isMobile && <div style={{ flex:1 }} />}
@@ -482,7 +513,8 @@ export default function AdminPage() {
           display:'flex', gap:0, overflowX:'auto', scrollbarWidth:'none',
           padding:'0 4px',
         }}>
-          <KPI label="Piezas" value={String(piezas)} />
+          <KPI label="Disponibles" value={`${piezas}p`} />
+          <KPI label="Vendidas" value={`${vendidas}p`} />
           <KPI label="Invertido" value={fmtUSD(invertido)} />
           {config && <KPI label="Venta" value={fmtMXN(valorVenta)} />}
           {config && <KPI label="Utilidad" value={fmtMXN(utilidadTotal)} valueColor="#6B7B4A" />}
@@ -545,7 +577,8 @@ export default function AdminPage() {
               <VestidoCard key={v.id}
                 vestido={v} config={config}
                 onUpdate={updateCampo}
-                onToggleVendido={toggleVendido}
+                onVender={vender}
+                onDevolver={devolver}
                 expanded={expanded === v.id}
                 onToggleExpand={() => setExpanded(p => p===v.id ? null : v.id)}
               />
@@ -572,7 +605,8 @@ export default function AdminPage() {
                 <VestidoRow key={v.id}
                   vestido={v} config={config} idx={idx}
                   onUpdate={updateCampo}
-                  onToggleVendido={toggleVendido}
+                  onVender={vender}
+                  onDevolver={devolver}
                   expanded={expanded === v.id}
                   onToggleExpand={() => setExpanded(p => p===v.id ? null : v.id)}
                 />
