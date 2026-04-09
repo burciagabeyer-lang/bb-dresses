@@ -200,6 +200,135 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
   )
 }
 
+// ── Card móvil ────────────────────────────────────────────────
+function VestidoCard({ vestido, config, onUpdate, onToggleVendido, expanded, onToggleExpand }: {
+  vestido: any; config: any;
+  onUpdate: (id: string, campo: string, valor: string) => void;
+  onToggleVendido: (v: any) => void;
+  expanded: boolean;
+  onToggleExpand: () => void;
+}) {
+  const [precio, setPrecio] = useState(String(vestido.precio_usd ?? ''))
+  const [tc,  setTc]  = useState(String(vestido.tipo_cambio_custom ?? config?.tipo_cambio_usd_mxn ?? ''))
+  const [mk,  setMk]  = useState(String(vestido.markup_custom      ?? config?.markup_porcentaje   ?? ''))
+  const [cgo, setCgo] = useState(String(vestido.cargo_custom       ?? config?.cargo_adicional_mxn ?? ''))
+
+  const usdN        = parseFloat(precio) || 0
+  const tcN         = parseFloat(tc)     || 0
+  const mkN         = parseFloat(mk)     || 0
+  const cgoN        = parseFloat(cgo)    || 0
+  const costoMXN    = usdN * tcN
+  const precioVenta = Math.ceil(costoMXN * (1 + mkN / 100) + cgoN)
+  const utilidad    = precioVenta - costoMXN
+
+  function blur(campo: string, val: string) {
+    if (String(vestido[campo] ?? '') !== val) onUpdate(vestido.id, campo, val)
+  }
+
+  const ei: React.CSSProperties = {
+    width:'100%', background:white, border:`1px solid ${grayL}`, borderRadius:6,
+    padding:'8px 10px', fontSize:14, color:text, fontFamily:'system-ui', outline:'none',
+  }
+  const lbl: React.CSSProperties = {
+    display:'block', fontSize:10, color:grayM, fontWeight:700,
+    letterSpacing:'.07em', textTransform:'uppercase', marginBottom:4,
+  }
+
+  return (
+    <div style={{
+      background:white, border:`1px solid ${grayL}`, borderRadius:8,
+      padding:14, marginBottom:8, opacity: vestido.vendido ? 0.82 : 1,
+    }}>
+      {/* Style # + pill */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+        <span style={{ fontFamily:'monospace', fontSize:16, fontWeight:700, color:gold }}>{vestido.style_number}</span>
+        <span style={{
+          background: vestido.vendido ? `${terra}18` : `${olive}18`,
+          color: vestido.vendido ? terra : olive,
+          border: `1px solid ${vestido.vendido ? terra : olive}55`,
+          borderRadius:10, padding:'2px 10px', fontSize:10, fontWeight:700,
+          letterSpacing:'.05em', textTransform:'uppercase',
+        }}>{vestido.vendido ? 'Vendido' : 'Disponible'}</span>
+      </div>
+
+      {/* Color · Talla · Tienda */}
+      <div style={{ fontSize:12, color:grayM, marginBottom:10 }}>
+        {[vestido.color, vestido.talla, vestido.tienda].filter(Boolean).join(' · ')}
+      </div>
+
+      <div style={{ height:1, background:grayL, marginBottom:10 }} />
+
+      {/* Costo + Utilidad */}
+      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+        <span style={{ fontSize:13, color:grayM }}>Costo <strong style={{ color:text }}>{tcN ? fmtMXN(costoMXN) : '—'}</strong></span>
+        <span style={{ fontSize:13, fontWeight:700, color:'#6B7B4A' }}>Utilidad {tcN ? fmtMXN(utilidad) : '—'}</span>
+      </div>
+
+      {/* Precio venta */}
+      <div style={{ fontSize:20, fontWeight:700, color:text, marginBottom:12 }}>
+        {tcN ? fmtMXN(precioVenta) : <span style={{ color:grayM, fontSize:13 }}>Sin T/C configurado</span>}
+      </div>
+
+      <div style={{ height:1, background:grayL, marginBottom:10 }} />
+
+      {/* Botón vendido full-width */}
+      <button onClick={e=>{ e.stopPropagation(); onToggleVendido(vestido) }} style={{
+        width:'100%', padding:'11px', fontSize:13, fontWeight:700, borderRadius:6,
+        cursor:'pointer', fontFamily:'inherit',
+        border:`1px solid ${vestido.vendido ? terra : gold}`,
+        background: vestido.vendido ? 'transparent' : gold,
+        color: vestido.vendido ? terra : white,
+      }}>{vestido.vendido ? '↩ Devolver' : '✓ Vendido'}</button>
+
+      {/* Toggle expansión */}
+      <button onClick={onToggleExpand} style={{
+        width:'100%', background:'none', border:'none', color:grayM,
+        fontSize:12, cursor:'pointer', padding:'8px 0 0', fontFamily:'inherit',
+      }}>{expanded ? '▲ Ocultar' : '▼ Editar campos'}</button>
+
+      {/* Campos editables expandidos */}
+      {expanded && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginTop:10, paddingTop:12, borderTop:`1px solid ${grayL}` }}>
+          <div>
+            <label style={lbl}>Precio USD</label>
+            <input type="number" step="0.01" value={precio}
+              onChange={e=>setPrecio(e.target.value)}
+              onBlur={e=>blur('precio_usd',e.target.value)} style={ei} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+            <div>
+              <label style={lbl}>T/C</label>
+              <input type="number" step="0.01" value={tc}
+                onChange={e=>setTc(e.target.value)}
+                onBlur={e=>blur('tipo_cambio_custom',e.target.value)} style={ei} />
+            </div>
+            <div>
+              <label style={lbl}>Mark%</label>
+              <input type="number" step="1" value={mk}
+                onChange={e=>setMk(e.target.value)}
+                onBlur={e=>blur('markup_custom',e.target.value)} style={ei} />
+            </div>
+            <div>
+              <label style={lbl}>Cargo</label>
+              <input type="number" step="1" value={cgo}
+                onChange={e=>setCgo(e.target.value)}
+                onBlur={e=>blur('cargo_custom',e.target.value)} style={ei} />
+            </div>
+          </div>
+          {[{ label:'Descripción', campo:'descripcion' },{ label:'Notas', campo:'notas' }].map(({ label, campo })=>(
+            <div key={campo}>
+              <label style={lbl}>{label}</label>
+              <input defaultValue={vestido[campo]||''}
+                placeholder={`Agregar ${label.toLowerCase()}...`}
+                onBlur={e=>blur(campo,e.target.value)} style={ei} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────
 export default function AdminPage() {
   const [vestidos, setVestidos]     = useState<any[]>([])
@@ -212,7 +341,15 @@ export default function AdminPage() {
   const [modalSubir, setModalSubir] = useState(false)
   const [modalCfg, setModalCfg]     = useState(false)
   const [expanded, setExpanded]     = useState<string|null>(null)
+  const [isMobile, setIsMobile]     = useState(false)
   const debRef = useRef<ReturnType<typeof setTimeout>|null>(null)
+
+  useEffect(() => {
+    function check() { setIsMobile(window.innerWidth < 768) }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   function load() {
     setLoading(true)
@@ -307,14 +444,17 @@ export default function AdminPage() {
           <span style={{ letterSpacing:'0.2em', fontSize:10, fontWeight:700, textTransform:'uppercase', color:text }}>DRESSES</span>
         </a>
 
-        {/* KPIs — scroll horizontal en móvil */}
-        <div style={{ display:'flex', gap:0, overflowX:'auto', flex:1, scrollbarWidth:'none' }}>
-          <KPI label="Disponibles" value={`${piezas} piezas`} />
-          <KPI label="Invertido" value={fmtUSD(invertido)} />
-          {config && <KPI label="Valor venta" value={fmtMXN(valorVenta)} />}
-          {config && <KPI label="Utilidad" value={fmtMXN(utilidadTotal)} valueColor="#6B7B4A" />}
-          <KPI label="Vendidos" value={String(vend.length)} />
-        </div>
+        {/* KPIs — solo en desktop */}
+        {!isMobile && (
+          <div style={{ display:'flex', gap:0, overflowX:'auto', flex:1, scrollbarWidth:'none' }}>
+            <KPI label="Disponibles" value={`${piezas} piezas`} />
+            <KPI label="Invertido" value={fmtUSD(invertido)} />
+            {config && <KPI label="Valor venta" value={fmtMXN(valorVenta)} />}
+            {config && <KPI label="Utilidad" value={fmtMXN(utilidadTotal)} valueColor="#6B7B4A" />}
+            <KPI label="Vendidos" value={String(vend.length)} />
+          </div>
+        )}
+        {isMobile && <div style={{ flex:1 }} />}
 
         {/* Acciones */}
         <div style={{ display:'flex', gap:8, flexShrink:0 }}>
@@ -331,23 +471,39 @@ export default function AdminPage() {
         </div>
       </header>
 
+      {/* KPI strip — solo en mobile, debajo del header */}
+      {isMobile && (
+        <div style={{
+          flexShrink:0, background:cream, borderBottom:`1px solid ${grayL}`,
+          display:'flex', gap:0, overflowX:'auto', scrollbarWidth:'none',
+          padding:'0 4px',
+        }}>
+          <KPI label="Piezas" value={String(piezas)} />
+          <KPI label="Invertido" value={fmtUSD(invertido)} />
+          {config && <KPI label="Venta" value={fmtMXN(valorVenta)} />}
+          {config && <KPI label="Utilidad" value={fmtMXN(utilidadTotal)} valueColor="#6B7B4A" />}
+        </div>
+      )}
+
       {/* Barra de filtros — nunca se mueve */}
       <div style={{
         flexShrink:0, position:'sticky', top:`${HEADER_H}px`, zIndex:99,
         background:cream, borderBottom:`1px solid ${grayL}`,
-        padding:'10px 20px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center',
+        padding:'10px 16px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center',
       }}>
-        <div style={{ position:'relative', flex:'1 1 180px' }}>
+        <div style={{ position:'relative', flex: isMobile ? '1 1 100%' : '1 1 180px' }}>
           <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color:grayM, pointerEvents:'none' }}>⌕</span>
           <input value={display} onChange={e=>handleFiltro(e.target.value)} placeholder="Buscar style#, color, tienda..."
             style={{ width:'100%', background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'8px 10px 8px 28px', fontSize:13, color:text, fontFamily:'inherit', outline:'none' }} />
         </div>
 
-        <select value={tiendaF} onChange={e=>setTiendaF(e.target.value)}
-          style={{ background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'8px 10px', fontSize:13, color:text, fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-          <option value="">Todas las tiendas</option>
-          {tiendas.map(t=><option key={t} value={t}>{t}</option>)}
-        </select>
+        {!isMobile && (
+          <select value={tiendaF} onChange={e=>setTiendaF(e.target.value)}
+            style={{ background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'8px 10px', fontSize:13, color:text, fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+            <option value="">Todas las tiendas</option>
+            {tiendas.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
 
         <div style={{ display:'flex', gap:4 }}>
           {(['todos','disponibles','vendidos'] as const).map(e=>(
@@ -366,8 +522,8 @@ export default function AdminPage() {
         <div style={{ fontSize:11, color:grayM, marginLeft:'auto', flexShrink:0 }}>{filtrados.length} registros</div>
       </div>
 
-      {/* Tabla — única zona con scroll */}
-      <div style={{ flex:1, overflowY:'auto', overflowX:'auto' }}>
+      {/* Contenido — única zona con scroll */}
+      <div style={{ flex:1, overflowY:'auto', overflowX: isMobile ? 'hidden' : 'auto' }}>
         {loading ? (
           <div style={{ textAlign:'center', padding:'72px 0', color:grayM }}>
             <div style={{ fontFamily:serif, fontSize:18, marginBottom:6 }}>Cargando inventario</div>
@@ -378,7 +534,21 @@ export default function AdminPage() {
             <div style={{ fontFamily:serif, fontSize:20, marginBottom:8, color:text }}>Sin resultados</div>
             <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
           </div>
+        ) : isMobile ? (
+          /* ── Vista cards (mobile) ── */
+          <div style={{ padding:'12px 16px' }}>
+            {filtrados.map(v => (
+              <VestidoCard key={v.id}
+                vestido={v} config={config}
+                onUpdate={updateCampo}
+                onToggleVendido={toggleVendido}
+                expanded={expanded === v.id}
+                onToggleExpand={() => setExpanded(p => p===v.id ? null : v.id)}
+              />
+            ))}
+          </div>
         ) : (
+          /* ── Vista tabla (desktop) ── */
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:1180 }}>
             <thead style={{ position:'sticky', top:0, zIndex:50, background:cream }}>
               <tr>
