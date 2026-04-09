@@ -16,11 +16,18 @@ const serif  = "'Playfair Display', Georgia, 'Times New Roman', serif"
 // ── Helpers ───────────────────────────────────────────────────
 function fmtUSD(v: number) { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v) }
 function fmtMXN(v: number) { return new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(v) }
-function calcMXN(usd: number, cfg: any): number | null {
+function calcCostoMXN(usd: number, cfg: any): number | null {
   if (!cfg) return null
-  const enMXN   = usd * parseFloat(cfg.tipo_cambio_usd_mxn || '0')
-  const conMark = enMXN * (1 + parseFloat(cfg.markup_porcentaje || '0') / 100)
-  return Math.ceil(conMark + parseFloat(cfg.cargo_adicional_mxn || '0'))
+  return usd * parseFloat(cfg.tipo_cambio_usd_mxn || '0')
+}
+function calcPrecioVenta(usd: number, cfg: any): number | null {
+  if (!cfg) return null
+  const costo = calcCostoMXN(usd, cfg)!
+  return Math.ceil(costo * (1 + parseFloat(cfg.markup_porcentaje || '0') / 100) + parseFloat(cfg.cargo_adicional_mxn || '0'))
+}
+function calcUtilidad(usd: number, cfg: any): number | null {
+  if (!cfg) return null
+  return calcPrecioVenta(usd, cfg)! - calcCostoMXN(usd, cfg)!
 }
 
 // ── Modal wrapper ─────────────────────────────────────────────
@@ -47,11 +54,11 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 // ── KPI chip ──────────────────────────────────────────────────
-function KPI({ label, value }: { label: string; value: string }) {
+function KPI({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:1, padding:'0 14px', borderLeft:`1px solid ${grayL}`, flexShrink:0 }}>
       <div style={{ fontSize:10, color:'#9A8A7A', fontWeight:700, letterSpacing:'.15em', textTransform:'uppercase' }}>{label}</div>
-      <div style={{ fontSize:18, fontWeight:600, color:text, fontFamily:'Georgia,serif', whiteSpace:'nowrap' }}>{value}</div>
+      <div style={{ fontSize:18, fontWeight:600, color:valueColor||text, fontFamily:'Georgia,serif', whiteSpace:'nowrap' }}>{value}</div>
     </div>
   )
 }
@@ -65,7 +72,10 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
   onToggleExpand: () => void;
 }) {
   const [precio, setPrecio] = useState(String(vestido.precio_usd ?? ''))
-  const mxn = calcMXN(parseFloat(precio) || 0, config)
+  const usdN        = parseFloat(precio) || 0
+  const costoMXN    = calcCostoMXN(usdN, config)
+  const precioVenta = calcPrecioVenta(usdN, config)
+  const utilidad    = calcUtilidad(usdN, config)
 
   function blur(campo: string, val: string) {
     if (String(vestido[campo] ?? '') !== val) onUpdate(vestido.id, campo, val)
@@ -110,11 +120,14 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
             onBlur={e=>blur('precio_usd',e.target.value)}
             onClick={e=>e.stopPropagation()} style={ci} />
         </td>
-        <td style={{ ...td, minWidth:76, textAlign:'center', color:grayM, fontSize:12 }}>
-          {config ? parseFloat(config.tipo_cambio_usd_mxn).toFixed(2) : '—'}
+        <td style={{ ...td, minWidth:110 }}>
+          {costoMXN !== null ? fmtMXN(costoMXN) : '—'}
         </td>
-        <td style={{ ...td, minWidth:110, fontWeight:700, color:olive, fontSize:14 }}>
-          {mxn !== null ? fmtMXN(mxn) : '—'}
+        <td style={{ ...td, minWidth:110, fontWeight:700 }}>
+          {precioVenta !== null ? fmtMXN(precioVenta) : '—'}
+        </td>
+        <td style={{ ...td, minWidth:100, fontWeight:700, color:'#6B7B4A' }}>
+          {utilidad !== null ? fmtMXN(utilidad) : '—'}
         </td>
         <td style={{ ...td, minWidth:100 }}>
           <span style={{
@@ -135,7 +148,7 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
       </tr>
       {expanded && (
         <tr style={{ background:`${gold}07` }}>
-          <td colSpan={10} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
+          <td colSpan={11} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
               {[{ label:'Descripción', campo:'descripcion' },{ label:'Notas', campo:'notas' }].map(({ label, campo }) => (
                 <div key={campo}>
@@ -214,8 +227,12 @@ export default function AdminPage() {
   const piezas     = disp.reduce((s,v)=>s+(parseInt(v.cantidad)||1),0)
   const invertido  = vestidos.reduce((s,v)=>s+(parseFloat(v.precio_usd)||0)*(parseInt(v.cantidad)||1),0)
   const valorVenta = config ? disp.reduce((s,v)=>{
-    const m = calcMXN(parseFloat(v.precio_usd)||0,config)
+    const m = calcPrecioVenta(parseFloat(v.precio_usd)||0,config)
     return s+(m||0)*(parseInt(v.cantidad)||1)
+  },0) : 0
+  const utilidadTotal = config ? disp.reduce((s,v)=>{
+    const u = calcUtilidad(parseFloat(v.precio_usd)||0,config)
+    return s+(u||0)*(parseInt(v.cantidad)||1)
   },0) : 0
 
   const HEADER_H = 56
@@ -252,6 +269,7 @@ export default function AdminPage() {
           <KPI label="Disponibles" value={`${piezas} piezas`} />
           <KPI label="Invertido" value={fmtUSD(invertido)} />
           {config && <KPI label="Valor venta" value={fmtMXN(valorVenta)} />}
+          {config && <KPI label="Utilidad" value={fmtMXN(utilidadTotal)} valueColor="#6B7B4A" />}
           <KPI label="Vendidos" value={String(vend.length)} />
         </div>
 
@@ -306,7 +324,7 @@ export default function AdminPage() {
       </div>
 
       {/* Tabla — única zona con scroll */}
-      <main style={{ flex:1, overflowY:'auto', overflowX:'auto' }}>
+      <div style={{ flex:1, overflowY:'auto', overflowX:'auto' }}>
         {loading ? (
           <div style={{ textAlign:'center', padding:'72px 0', color:grayM }}>
             <div style={{ fontFamily:serif, fontSize:18, marginBottom:6 }}>Cargando inventario</div>
@@ -318,36 +336,34 @@ export default function AdminPage() {
             <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
           </div>
         ) : (
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:860 }}>
-              <thead>
-                <tr style={{ background:cream, position:'sticky', top:0, zIndex:10 }}>
-                  {['Style #','Tienda','Color','Talla','Cant.','Precio USD','T. cambio','Precio MXN','Estado','Acción'].map((h,i)=>(
-                    <th key={i} style={{
-                      padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
-                      letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
-                      borderBottom:`2px solid ${gold}`,
-                      whiteSpace:'nowrap', userSelect:'none',
-                      ...(i===0 ? {position:'sticky',left:0,background:cream,zIndex:11,borderRight:`1px solid ${grayL}`} : {}),
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map((v, idx) => (
-                  <VestidoRow key={v.id}
-                    vestido={v} config={config} idx={idx}
-                    onUpdate={updateCampo}
-                    onToggleVendido={toggleVendido}
-                    expanded={expanded === v.id}
-                    onToggleExpand={() => setExpanded(p => p===v.id ? null : v.id)}
-                  />
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:940 }}>
+            <thead style={{ position:'sticky', top:0, zIndex:50, background:cream }}>
+              <tr>
+                {['Style #','Tienda','Color','Talla','Cant.','Precio USD','Costo MXN','Precio Venta','Utilidad','Estado','Acción'].map((h,i)=>(
+                  <th key={i} style={{
+                    padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
+                    letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
+                    borderBottom:`2px solid ${gold}`,
+                    whiteSpace:'nowrap', userSelect:'none',
+                    ...(i===0 ? {position:'sticky',left:0,background:cream,zIndex:51,borderRight:`1px solid ${grayL}`} : {}),
+                  }}>{h}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((v, idx) => (
+                <VestidoRow key={v.id}
+                  vestido={v} config={config} idx={idx}
+                  onUpdate={updateCampo}
+                  onToggleVendido={toggleVendido}
+                  expanded={expanded === v.id}
+                  onToggleExpand={() => setExpanded(p => p===v.id ? null : v.id)}
+                />
+              ))}
+            </tbody>
+          </table>
         )}
-      </main>
+      </div>
 
       {/* Modal: Subir factura */}
       {modalSubir && (
