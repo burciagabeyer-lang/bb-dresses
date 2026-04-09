@@ -262,6 +262,16 @@ function TabInventario() {
     setVestidos(p=>p.map(x=>x.id===v.id?{...x,vendido:!x.vendido}:x))
   }
 
+  async function updateCampo(id: string, campo: string, valor: string) {
+    await fetch('/api/vestidos', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id,[campo]:valor}) })
+  }
+
+  function handleBlur(v: any, campo: string, valor: string) {
+    if (String(v[campo]) === valor) return
+    setVestidos(p=>p.map(x=>x.id===v.id?{...x,[campo]:valor}:x))
+    updateCampo(v.id, campo, valor)
+  }
+
   const filtrados = vestidos.filter(v => {
     const q = filtro.toLowerCase()
     const match = !q || v.style_number?.toLowerCase().includes(q) || v.color?.toLowerCase().includes(q) || v.tienda?.toLowerCase().includes(q)
@@ -288,7 +298,7 @@ function TabInventario() {
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
           <thead>
             <tr style={{background:th.surfaceAlt}}>
-              {['Style #','Tienda','Color','Talla','Precio USD','Estado',''].map((h,i)=>(
+              {['Style #','Tienda','Color','Talla','Cant.','Precio USD','Descripción','Estado',''].map((h,i)=>(
                 <th key={i} style={{padding:'10px 9px',textAlign:'left',color:th.muted,fontSize:10,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',borderBottom:`1px solid ${th.border}`}}>{h}</th>
               ))}
             </tr>
@@ -296,11 +306,25 @@ function TabInventario() {
           <tbody>
             {filtrados.map((v,i)=>(
               <tr key={v.id} style={{background:i%2===0?'transparent':th.surfaceAlt+'44',opacity:v.vendido?.7:1}}>
-                <td style={{padding:'8px 9px',borderBottom:`1px solid ${th.border}`,fontFamily:'monospace',fontWeight:700,color:th.gold}}>{v.style_number}</td>
+                <td style={{padding:'4px 7px',borderBottom:`1px solid ${th.border}`}}>
+                  <input className="ci-inv" defaultValue={v.style_number} onBlur={e=>handleBlur(v,'style_number',e.target.value)} style={{fontFamily:'monospace',fontWeight:700,color:th.gold}} />
+                </td>
                 <td style={{padding:'8px 9px',borderBottom:`1px solid ${th.border}`,color:th.muted,fontSize:12}}>{v.tienda}</td>
-                <td style={{padding:'8px 9px',borderBottom:`1px solid ${th.border}`}}>{v.color}</td>
-                <td style={{padding:'8px 9px',borderBottom:`1px solid ${th.border}`,textAlign:'center',fontFamily:'monospace'}}>{v.talla}</td>
-                <td style={{padding:'8px 9px',borderBottom:`1px solid ${th.border}`}}>{fmtUSD(v.precio_usd)}</td>
+                <td style={{padding:'4px 7px',borderBottom:`1px solid ${th.border}`}}>
+                  <input className="ci-inv" defaultValue={v.color} onBlur={e=>handleBlur(v,'color',e.target.value)} />
+                </td>
+                <td style={{padding:'4px 7px',borderBottom:`1px solid ${th.border}`}}>
+                  <input className="ci-inv" defaultValue={v.talla} onBlur={e=>handleBlur(v,'talla',e.target.value)} style={{textAlign:'center',fontFamily:'monospace',width:48}} />
+                </td>
+                <td style={{padding:'4px 7px',borderBottom:`1px solid ${th.border}`}}>
+                  <input className="ci-inv" type="number" defaultValue={v.cantidad} onBlur={e=>handleBlur(v,'cantidad',e.target.value)} style={{textAlign:'center',width:52}} />
+                </td>
+                <td style={{padding:'4px 7px',borderBottom:`1px solid ${th.border}`}}>
+                  <input className="ci-inv" type="number" step="0.01" defaultValue={v.precio_usd} onBlur={e=>handleBlur(v,'precio_usd',e.target.value)} style={{width:84}} />
+                </td>
+                <td style={{padding:'4px 7px',borderBottom:`1px solid ${th.border}`}}>
+                  <input className="ci-inv" defaultValue={v.descripcion||''} onBlur={e=>handleBlur(v,'descripcion',e.target.value)} style={{minWidth:120}} />
+                </td>
                 <td style={{padding:'8px 9px',borderBottom:`1px solid ${th.border}`}}>
                   <span style={{background:v.vendido?`${th.error}22`:`${th.success}22`,color:v.vendido?th.error:th.success,border:`1px solid ${v.vendido?th.error:th.success}44`,borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700}}>
                     {v.vendido?'Vendido':'Disponible'}
@@ -315,6 +339,7 @@ function TabInventario() {
             ))}
           </tbody>
         </table>
+        <style>{`.ci-inv{background:transparent;border:1px solid transparent;border-radius:4px;color:${th.text};padding:3px 5px;font-size:12px;width:100%;font-family:inherit;outline:none}.ci-inv:hover,.ci-inv:focus{background:${th.surfaceAlt};border-color:${th.border}}`}</style>
       </div>
     </div>
   )

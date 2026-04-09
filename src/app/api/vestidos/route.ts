@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       .insert({
         tienda:    factura.tienda,
         numero:    factura.numero_factura || null,
-        fecha:     factura.fecha || null,
+        fecha:     factura.fecha && /^\d{4}-\d{2}-\d{2}$/.test(factura.fecha) ? factura.fecha : null,
         total_usd: totalUSD,
       })
       .select()
@@ -100,6 +100,21 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('[vestidos POST]', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// PUT /api/vestidos — actualizar campos de un vestido individual
+export async function PUT(request: NextRequest) {
+  try {
+    const { id, ...campos } = await request.json()
+    if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+    const camposValidos = ['style_number','color','talla','cantidad','precio_usd','descripcion','tienda','notas']
+    const update = Object.fromEntries(Object.entries(campos).filter(([k]) => camposValidos.includes(k)))
+    const { error } = await supabase.from('vestidos').update(update).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
