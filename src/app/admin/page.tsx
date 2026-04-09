@@ -373,6 +373,8 @@ export default function AdminPage() {
   const [modalCfg, setModalCfg]     = useState(false)
   const [expanded, setExpanded]     = useState<string|null>(null)
   const [isMobile, setIsMobile]     = useState(false)
+  const [sortCol, setSortCol]       = useState<string|null>(null)
+  const [sortDir, setSortDir]       = useState<'asc'|'desc'>('asc')
   const debRef = useRef<ReturnType<typeof setTimeout>|null>(null)
 
   useEffect(() => {
@@ -433,6 +435,28 @@ export default function AdminPage() {
 
   // Tiendas dinámicas
   const tiendas = Array.from(new Set(vestidos.map(v=>v.tienda).filter(Boolean))).sort()
+
+  // Ordenamiento
+  function handleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  const ordenados = [...filtrados].sort((a, b) => {
+    if (!sortCol) return 0
+    let va: any, vb: any
+    if (sortCol === 'precio_usd') { va = parseFloat(a.precio_usd)||0; vb = parseFloat(b.precio_usd)||0 }
+    else if (sortCol === 'cantidad') { va = parseInt(a.cantidad)||0; vb = parseInt(b.cantidad)||0 }
+    else if (sortCol === 'cantidad_vendida') { va = a.cantidad_vendida||0; vb = b.cantidad_vendida||0 }
+    else if (sortCol === 'talla') { va = parseInt(a.talla)||0; vb = parseInt(b.talla)||0 }
+    else if (sortCol === 'costo_mxn') { va = rowFinancials(a).costo; vb = rowFinancials(b).costo }
+    else if (sortCol === 'precio_venta') { va = rowFinancials(a).venta; vb = rowFinancials(b).venta }
+    else if (sortCol === 'utilidad') { va = rowFinancials(a).util; vb = rowFinancials(b).util }
+    else if (sortCol === 'vendido') { va = a.vendido ? 1 : 0; vb = b.vendido ? 1 : 0 }
+    else { va = String(a[sortCol]||'').toLowerCase(); vb = String(b[sortCol]||'').toLowerCase() }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
 
   // KPIs
   const disp       = vestidos.filter(v=>v.cantidad > 0)
@@ -596,19 +620,34 @@ export default function AdminPage() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:1180 }}>
             <thead style={{ position:'sticky', top:0, zIndex:50, background:cream }}>
               <tr>
-                {['Style #','Tienda','Color','Talla','Disp.','Vend.','Precio USD','T/C','Mark%','Cargo','Costo MXN','Precio Venta','Utilidad','Estado','Acción'].map((h,i)=>(
-                  <th key={i} style={{
-                    padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
-                    letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
-                    borderBottom:`2px solid ${gold}`,
-                    whiteSpace:'nowrap', userSelect:'none',
-                    ...(i===0 ? {position:'sticky',left:0,background:cream,zIndex:51,borderRight:`1px solid ${grayL}`} : {}),
-                  }}>{h}</th>
-                ))}
+                {([
+                  ['Style #','style_number'],['Tienda','tienda'],['Color','color'],['Talla','talla'],
+                  ['Disp.','cantidad'],['Vend.','cantidad_vendida'],['Precio USD','precio_usd'],
+                  ['T/C',null],['Mark%',null],['Cargo',null],
+                  ['Costo MXN','costo_mxn'],['Precio Venta','precio_venta'],['Utilidad','utilidad'],
+                  ['Estado','vendido'],['Acción',null],
+                ] as [string, string|null][]).map(([h, col], i) => {
+                  const active = col && sortCol === col
+                  const arrow = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : (col ? ' ↕' : '')
+                  return (
+                    <th key={i}
+                      onClick={col ? () => handleSort(col) : undefined}
+                      style={{
+                        padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
+                        letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
+                        borderBottom:`2px solid ${gold}`,
+                        whiteSpace:'nowrap', userSelect:'none',
+                        cursor: col ? 'pointer' : 'default',
+                        ...(i===0 ? {position:'sticky',left:0,background:cream,zIndex:51,borderRight:`1px solid ${grayL}`} : {}),
+                      }}>
+                      {h}<span style={{ color: active ? gold : grayL, fontSize:10 }}>{arrow}</span>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((v, idx) => (
+              {ordenados.map((v, idx) => (
                 <VestidoRow key={v.id}
                   vestido={v} config={config} idx={idx}
                   onUpdate={updateCampo}
