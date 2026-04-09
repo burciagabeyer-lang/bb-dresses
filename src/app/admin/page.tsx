@@ -221,10 +221,11 @@ export default function AdminPage() {
   const HEADER_H = 56
 
   return (
-    <div style={{ minHeight:'100vh', background:cream, fontFamily:'system-ui,-apple-system,sans-serif', color:text }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background:cream, fontFamily:'system-ui,-apple-system,sans-serif', color:text }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700&display=swap');
         *{box-sizing:border-box}
+        html,body{height:100%;overflow:hidden}
         input:focus{outline:1px solid ${gold};border-radius:1px;outline-offset:1px}
         input[type=number]::-webkit-inner-spin-button{opacity:0}
         ::-webkit-scrollbar{height:4px;width:4px}
@@ -233,9 +234,9 @@ export default function AdminPage() {
         tr:hover td{background:${gold}06!important}
       `}</style>
 
-      {/* Header fijo */}
+      {/* Header — nunca se mueve */}
       <header style={{
-        position:'sticky', top:0, zIndex:100,
+        flexShrink:0,
         background:cream, borderBottom:`1px solid ${grayL}`,
         height:HEADER_H, display:'flex', alignItems:'center',
         padding:'0 20px', gap:12,
@@ -269,9 +270,9 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {/* Barra de filtros */}
+      {/* Barra de filtros — nunca se mueve */}
       <div style={{
-        position:'sticky', top:HEADER_H, zIndex:50,
+        flexShrink:0,
         background:cream, borderBottom:`1px solid ${grayL}`,
         padding:'10px 20px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center',
       }}>
@@ -304,8 +305,8 @@ export default function AdminPage() {
         <div style={{ fontSize:11, color:grayM, marginLeft:'auto', flexShrink:0 }}>{filtrados.length} registros</div>
       </div>
 
-      {/* Tabla */}
-      <main style={{ paddingTop:0 }}>
+      {/* Tabla — única zona con scroll */}
+      <main style={{ flex:1, overflowY:'auto', overflowX:'auto' }}>
         {loading ? (
           <div style={{ textAlign:'center', padding:'72px 0', color:grayM }}>
             <div style={{ fontFamily:serif, fontSize:18, marginBottom:6 }}>Cargando inventario</div>
@@ -317,7 +318,7 @@ export default function AdminPage() {
             <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
           </div>
         ) : (
-          <div style={{ overflowX:'auto', overflowY:'auto', maxHeight:'calc(100vh - 108px)' }}>
+          <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:860 }}>
               <thead>
                 <tr style={{ background:cream, position:'sticky', top:0, zIndex:10 }}>
