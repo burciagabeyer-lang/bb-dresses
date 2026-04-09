@@ -128,27 +128,32 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// PATCH /api/vestidos — vender o devolver via RPC atómica
-// accion: 'vender'   → llama RPC vender_pieza
-// accion: 'devolver' → llama RPC devolver_pieza
 export async function PATCH(request: NextRequest) {
   try {
     const { id, accion } = await request.json()
-    if (!id || !accion) return NextResponse.json({ error: 'id y accion requeridos' }, { status: 400 })
+    if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
 
     if (accion === 'vender') {
       const { data, error } = await supabase.rpc('vender_pieza', { p_id: id })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ success: true, ...data })
+      return NextResponse.json({ success: true, cantidad: data.cantidad, cantidad_vendida: data.cantidad_vendida, vendido: data.vendido })
     }
 
     if (accion === 'devolver') {
       const { data, error } = await supabase.rpc('devolver_pieza', { p_id: id })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ success: true, ...data })
+      return NextResponse.json({ success: true, cantidad: data.cantidad, cantidad_vendida: data.cantidad_vendida, vendido: data.vendido })
     }
 
-    return NextResponse.json({ error: 'accion debe ser vender o devolver' }, { status: 400 })
+    // PATCH genérico para editar campos
+    const body = await request.json().catch(() => ({}))
+    const { id: _id, accion: _ac, ...campos } = { id, accion, ...body }
+    const camposValidos = ['style_number','color','talla','cantidad','precio_usd','descripcion','tienda','notas','tipo_cambio_custom','markup_custom','cargo_custom']
+    const update = Object.fromEntries(Object.entries(campos).filter(([k]) => camposValidos.includes(k)))
+    if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Sin campos válidos' }, { status: 400 })
+    const { error } = await supabase.from('vestidos').update(update).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
