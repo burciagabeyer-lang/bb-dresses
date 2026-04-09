@@ -12,7 +12,6 @@ const olive  = '#4A6741'
 const terra  = '#8B4040'
 const serif  = "'Playfair Display', Georgia, 'Times New Roman', serif"
 
-const TIENDAS = ["LaVeneto","Cinderella Divine","Faviana","Jovani","Morilee","Sherri Hill","Mac Duggal","Terani","Otra"]
 
 // ── Helpers ───────────────────────────────────────────────────
 function fmtUSD(v: number) { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v) }
@@ -51,8 +50,8 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 function KPI({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:1, padding:'0 14px', borderLeft:`1px solid ${grayL}`, flexShrink:0 }}>
-      <div style={{ fontSize:9, color:grayM, fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase' }}>{label}</div>
-      <div style={{ fontSize:14, fontWeight:700, color:text, fontFamily:serif, whiteSpace:'nowrap' }}>{value}</div>
+      <div style={{ fontSize:10, color:'#9A8A7A', fontWeight:700, letterSpacing:'.15em', textTransform:'uppercase' }}>{label}</div>
+      <div style={{ fontSize:18, fontWeight:600, color:text, fontFamily:'Georgia,serif', whiteSpace:'nowrap' }}>{value}</div>
     </div>
   )
 }
@@ -206,6 +205,9 @@ export default function AdminPage() {
     return mQ && mT && mE
   })
 
+  // Tiendas dinámicas
+  const tiendas = Array.from(new Set(vestidos.map(v=>v.tienda).filter(Boolean))).sort()
+
   // KPIs
   const disp       = vestidos.filter(v=>!v.vendido)
   const vend       = vestidos.filter(v=>v.vendido)
@@ -233,7 +235,7 @@ export default function AdminPage() {
 
       {/* Header fijo */}
       <header style={{
-        position:'fixed', top:0, left:0, right:0, zIndex:100,
+        position:'sticky', top:0, zIndex:100,
         background:cream, borderBottom:`1px solid ${grayL}`,
         height:HEADER_H, display:'flex', alignItems:'center',
         padding:'0 20px', gap:12,
@@ -282,7 +284,7 @@ export default function AdminPage() {
         <select value={tiendaF} onChange={e=>setTiendaF(e.target.value)}
           style={{ background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'8px 10px', fontSize:13, color:text, fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
           <option value="">Todas las tiendas</option>
-          {TIENDAS.map(t=><option key={t} value={t}>{t}</option>)}
+          {tiendas.map(t=><option key={t} value={t}>{t}</option>)}
         </select>
 
         <div style={{ display:'flex', gap:4 }}>
@@ -315,10 +317,10 @@ export default function AdminPage() {
             <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
           </div>
         ) : (
-          <div style={{ overflowX:'auto' }}>
+          <div style={{ overflowX:'auto', overflowY:'auto', maxHeight:'calc(100vh - 108px)' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:860 }}>
               <thead>
-                <tr style={{ background:cream, position:'sticky', top:HEADER_H + 50, zIndex:10 }}>
+                <tr style={{ background:cream, position:'sticky', top:0, zIndex:10 }}>
                   {['Style #','Tienda','Color','Talla','Cant.','Precio USD','T. cambio','Precio MXN','Estado','Acción'].map((h,i)=>(
                     <th key={i} style={{
                       padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
@@ -454,16 +456,12 @@ function SubirFacturaContent({ onDone }: { onDone: () => void }) {
       {(stage==='review'||stage==='saving') && (
         <>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
-            {[['Tienda','tienda','select'],['# Factura','numero_factura','text'],['Fecha','fecha','date']].map(([label,key,type])=>(
+            {[['Tienda','tienda','text'],['# Factura','numero_factura','text'],['Fecha','fecha','date']].map(([label,key,type])=>(
               <div key={key}>
                 <div style={{ fontSize:10,color:grayM,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:4 }}>{label}</div>
-                {type==='select'
-                  ? <select value={info.tienda} onChange={e=>setInfo(p=>({...p,tienda:e.target.value}))} style={inp}>
-                      <option value="">Selecciona...</option>
-                      {TIENDAS.map(t=><option key={t} value={t}>{t}</option>)}
-                    </select>
-                  : <input type={type} value={(info as any)[key]} onChange={e=>setInfo(p=>({...p,[key]:e.target.value}))} style={inp} />
-                }
+                <input type={type} value={(info as any)[key]} onChange={e=>setInfo(p=>({...p,[key]:e.target.value}))}
+                  placeholder={key==='tienda' ? 'Ej. Jovani, Faviana...' : undefined}
+                  style={inp} />
               </div>
             ))}
           </div>
@@ -507,7 +505,7 @@ function SubirFacturaContent({ onDone }: { onDone: () => void }) {
             <span>Total USD <strong style={{color:gold}}>{fmtUSD(totalUSD)}</strong></span>
           </div>
 
-          {!info.tienda && <p style={{ color:terra, fontSize:12, margin:0 }}>⚠ Selecciona la tienda antes de guardar.</p>}
+          {!info.tienda && <p style={{ color:terra, fontSize:12, margin:0 }}>⚠ Ingresa la tienda antes de guardar.</p>}
 
           <div style={{ display:'flex', gap:10 }}>
             <button onClick={()=>{setStage('upload');setVestidos([]);setPreview(null);setBase64(null)}}
