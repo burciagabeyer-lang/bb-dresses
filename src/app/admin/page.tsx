@@ -1,14 +1,20 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 
-const th = {
-  bg: '#0D0D0D', surface: '#161616', surfaceAlt: '#1E1E1E',
-  border: '#2A2A2A', gold: '#C9A84C', text: '#F0EDE8',
-  muted: '#888880', success: '#4CAF7D', error: '#E05A4A',
-}
+// ── Paleta Old Money ──────────────────────────────────────────
+const cream  = '#FAF8F5'
+const white  = '#FFFFFF'
+const text   = '#1A1A1A'
+const gold   = '#B8960C'
+const grayL  = '#E8E4DE'
+const grayM  = '#9C9690'
+const olive  = '#4A6741'
+const terra  = '#8B4040'
+const serif  = "'Playfair Display', Georgia, 'Times New Roman', serif"
+
 const TIENDAS = ["LaVeneto","Cinderella Divine","Faviana","Jovani","Morilee","Sherri Hill","Mac Duggal","Terani","Otra"]
-type Tab = 'subir' | 'inventario' | 'precios'
 
+// ── Helpers ───────────────────────────────────────────────────
 function fmtUSD(v: number) { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v) }
 function fmtMXN(v: number) { return new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(v) }
 function calcMXN(usd: number, cfg: any): number | null {
@@ -18,85 +24,347 @@ function calcMXN(usd: number, cfg: any): number | null {
   return Math.ceil(conMark + parseFloat(cfg.cargo_adicional_mxn || '0'))
 }
 
-// ── Splash ────────────────────────────────────────────────────
-function Splash({ onDone }: { onDone: () => void }) {
-  const [dots, setDots] = useState('.')
-  useEffect(() => {
-    const d = setInterval(() => setDots(p => p.length >= 3 ? '.' : p + '.'), 500)
-    const t = setTimeout(onDone, 3000)
-    return () => { clearInterval(d); clearTimeout(t) }
-  }, [onDone])
+// ── Modal wrapper ─────────────────────────────────────────────
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, fontFamily: 'system-ui,-apple-system,sans-serif' }}>
-      <style>{`
-        @keyframes pulse{0%,100%{filter:drop-shadow(0 0 4px #C9A84C) brightness(1)}50%{filter:drop-shadow(0 0 28px #C9A84C) brightness(1.3)}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        *{box-sizing:border-box}
-      `}</style>
-      <div style={{ fontSize: 88, animation: 'pulse 1.6s ease-in-out infinite', lineHeight: 1 }}>👗</div>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 32, fontWeight: 800, color: '#F0EDE8', letterSpacing: '0.04em' }}>BB Dresses</div>
-        <div style={{ fontSize: 14, color: '#888880', marginTop: 10 }}>Cargando{dots}</div>
-      </div>
-    </div>
-  )
-}
-
-// ── Admin page ────────────────────────────────────────────────
-export default function AdminPage() {
-  const [ready, setReady] = useState(false)
-  const [tab, setTab]     = useState<Tab>('subir')
-  const doneSplash = useCallback(() => setReady(true), [])
-
-  if (!ready) return <Splash onDone={doneSplash} />
-
-  return (
-    <div style={{ minHeight: '100vh', background: th.bg, fontFamily: 'system-ui,-apple-system,sans-serif', paddingBottom: 80 }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box}`}</style>
-
-      {/* Header */}
-      <div style={{ background: th.surface, borderBottom: `1px solid ${th.border}`, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <a href="/" style={{ color: th.muted, textDecoration: 'none', fontSize: 22, lineHeight: 1 }}>←</a>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>Panel Admin</div>
-          <div style={{ fontSize: 11, color: th.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>BB Dresses</div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px' }}>
-        {tab === 'subir'      && <TabSubir />}
-        {tab === 'inventario' && <TabInventario />}
-        {tab === 'precios'    && <TabPrecios />}
-      </div>
-
-      {/* Bottom tab bar estilo iOS */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: `${th.surface}f0`, backdropFilter: 'blur(12px)',
-        borderTop: `1px solid ${th.border}`, display: 'flex',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: 100,
+    <div onClick={onClose} style={{
+      position:'fixed', inset:0, background:'rgba(26,26,26,0.5)', zIndex:200,
+      display:'flex', alignItems:'flex-start', justifyContent:'center',
+      padding:'24px 16px', overflowY:'auto',
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:cream, border:`1px solid ${grayL}`, borderRadius:2,
+        width:'100%', maxWidth:580, marginTop:12,
+        boxShadow:'0 8px 32px rgba(0,0,0,.16)',
       }}>
-        {([['subir','📄','Subir'],['inventario','📦','Inventario'],['precios','💰','Precios']] as [Tab,string,string][]).map(([t,icon,label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, background: 'transparent', border: 'none',
-            borderTop: `2px solid ${tab === t ? th.gold : 'transparent'}`,
-            color: tab === t ? th.gold : th.muted,
-            padding: '10px 0 8px', cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-            transition: 'color .15s',
-          }}>
-            <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
-            <span style={{ fontSize: 10, fontWeight: tab === t ? 700 : 400, letterSpacing: '.04em' }}>{label}</span>
-          </button>
-        ))}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 24px', borderBottom:`1px solid ${grayL}` }}>
+          <span style={{ fontFamily:serif, fontSize:18, fontWeight:700, color:text }}>{title}</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:22, color:grayM, lineHeight:1, padding:'0 4px' }}>×</button>
+        </div>
+        <div style={{ padding:'20px 24px', maxHeight:'80vh', overflowY:'auto' }}>{children}</div>
       </div>
     </div>
   )
 }
 
-// ── TAB: Subir Factura ────────────────────────────────────────
-function TabSubir() {
+// ── KPI chip ──────────────────────────────────────────────────
+function KPI({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:1, padding:'0 14px', borderLeft:`1px solid ${grayL}`, flexShrink:0 }}>
+      <div style={{ fontSize:9, color:grayM, fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase' }}>{label}</div>
+      <div style={{ fontSize:14, fontWeight:700, color:text, fontFamily:serif, whiteSpace:'nowrap' }}>{value}</div>
+    </div>
+  )
+}
+
+// ── Fila de inventario (con estado local para precio_usd) ─────
+function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded, onToggleExpand }: {
+  vestido: any; config: any; idx: number;
+  onUpdate: (id: string, campo: string, valor: string) => void;
+  onToggleVendido: (v: any) => void;
+  expanded: boolean;
+  onToggleExpand: () => void;
+}) {
+  const [precio, setPrecio] = useState(String(vestido.precio_usd ?? ''))
+  const mxn = calcMXN(parseFloat(precio) || 0, config)
+
+  function blur(campo: string, val: string) {
+    if (String(vestido[campo] ?? '') !== val) onUpdate(vestido.id, campo, val)
+  }
+
+  const rowBg = vestido.vendido ? '#F0EDE8' : (idx % 2 === 0 ? white : cream)
+  const ci: React.CSSProperties = {
+    background:'transparent', border:'none', outline:'none',
+    color:text, fontSize:13, fontFamily:'system-ui', width:'100%', padding:'1px 0',
+  }
+  const td: React.CSSProperties = {
+    padding:'0 10px', borderBottom:`1px solid ${grayL}`, height:40, whiteSpace:'nowrap', verticalAlign:'middle',
+  }
+
+  return (
+    <Fragment>
+      <tr onClick={onToggleExpand} style={{ background:rowBg, cursor:'pointer', opacity:vestido.vendido?.75:1 }}>
+        {/* Style # — columna fija */}
+        <td style={{ ...td, position:'sticky', left:0, background:rowBg, zIndex:1, minWidth:110, borderRight:`1px solid ${grayL}` }}>
+          <input defaultValue={vestido.style_number} onBlur={e=>blur('style_number',e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            style={{ ...ci, fontFamily:'monospace', fontWeight:700, color:gold }} />
+        </td>
+        <td style={{ ...td, color:grayM, fontSize:12, minWidth:110 }}>{vestido.tienda}</td>
+        <td style={{ ...td, minWidth:100 }}>
+          <input defaultValue={vestido.color} onBlur={e=>blur('color',e.target.value)}
+            onClick={e=>e.stopPropagation()} style={ci} />
+        </td>
+        <td style={{ ...td, minWidth:60, textAlign:'center' }}>
+          <input defaultValue={vestido.talla} onBlur={e=>blur('talla',e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            style={{ ...ci, textAlign:'center', fontFamily:'monospace', width:44 }} />
+        </td>
+        <td style={{ ...td, minWidth:55, textAlign:'center' }}>
+          <input type="number" defaultValue={vestido.cantidad} onBlur={e=>blur('cantidad',e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            style={{ ...ci, textAlign:'center', width:38 }} />
+        </td>
+        <td style={{ ...td, minWidth:100 }}>
+          <input type="number" step="0.01" value={precio}
+            onChange={e=>setPrecio(e.target.value)}
+            onBlur={e=>blur('precio_usd',e.target.value)}
+            onClick={e=>e.stopPropagation()} style={ci} />
+        </td>
+        <td style={{ ...td, minWidth:76, textAlign:'center', color:grayM, fontSize:12 }}>
+          {config ? parseFloat(config.tipo_cambio_usd_mxn).toFixed(2) : '—'}
+        </td>
+        <td style={{ ...td, minWidth:110, fontWeight:700, color:olive, fontSize:14 }}>
+          {mxn !== null ? fmtMXN(mxn) : '—'}
+        </td>
+        <td style={{ ...td, minWidth:100 }}>
+          <span style={{
+            background: vestido.vendido ? `${terra}18` : `${olive}18`,
+            color: vestido.vendido ? terra : olive,
+            border: `1px solid ${vestido.vendido ? terra : olive}55`,
+            borderRadius:2, padding:'2px 8px', fontSize:10, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase',
+          }}>{vestido.vendido ? 'Vendido' : 'Disponible'}</span>
+        </td>
+        <td style={{ ...td, minWidth:90 }}>
+          <button onClick={e=>{e.stopPropagation();onToggleVendido(vestido)}} style={{
+            background:'transparent', border:`1px solid ${vestido.vendido ? terra : olive}`,
+            borderRadius:2, padding:'3px 9px', fontSize:11,
+            color:vestido.vendido ? terra : olive,
+            cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
+          }}>{vestido.vendido ? '↩ Devolver' : '✓ Vendido'}</button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr style={{ background:`${gold}07` }}>
+          <td colSpan={10} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              {[{ label:'Descripción', campo:'descripcion' },{ label:'Notas', campo:'notas' }].map(({ label, campo }) => (
+                <div key={campo}>
+                  <div style={{ fontSize:10, color:grayM, fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:4 }}>{label}</div>
+                  <input defaultValue={vestido[campo]||''} onBlur={e=>blur(campo,e.target.value)}
+                    placeholder={`Agregar ${label.toLowerCase()}...`}
+                    style={{ width:'100%', background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'7px 10px', fontSize:13, fontFamily:'system-ui', color:text, outline:'none' }} />
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  )
+}
+
+// ── Página principal ──────────────────────────────────────────
+export default function AdminPage() {
+  const [vestidos, setVestidos]     = useState<any[]>([])
+  const [config, setConfig]         = useState<any>(null)
+  const [loading, setLoading]       = useState(true)
+  const [display, setDisplay]       = useState('')
+  const [filtro, setFiltro]         = useState('')
+  const [tiendaF, setTiendaF]       = useState('')
+  const [estado, setEstado]         = useState<'todos'|'disponibles'|'vendidos'>('todos')
+  const [modalSubir, setModalSubir] = useState(false)
+  const [modalCfg, setModalCfg]     = useState(false)
+  const [expanded, setExpanded]     = useState<string|null>(null)
+  const debRef = useRef<ReturnType<typeof setTimeout>|null>(null)
+
+  function load() {
+    setLoading(true)
+    Promise.all([
+      fetch('/api/vestidos?all=true').then(r=>r.json()),
+      fetch('/api/config').then(r=>r.json()),
+    ]).then(([vd,cd]) => {
+      setVestidos(vd.data||[])
+      setConfig(cd.data||null)
+      setLoading(false)
+    })
+  }
+  useEffect(load, [])
+
+  function handleFiltro(val: string) {
+    setDisplay(val)
+    if (debRef.current) clearTimeout(debRef.current)
+    debRef.current = setTimeout(() => setFiltro(val), 300)
+  }
+
+  async function toggleVendido(v: any) {
+    await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:v.id,vendido:!v.vendido}) })
+    setVestidos(p=>p.map(x=>x.id===v.id?{...x,vendido:!x.vendido}:x))
+  }
+
+  async function updateCampo(id: string, campo: string, valor: string) {
+    await fetch('/api/vestidos', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id,[campo]:valor}) })
+    setVestidos(p=>p.map(x=>x.id===id?{...x,[campo]:valor}:x))
+  }
+
+  // Filtrado
+  const q = filtro.toLowerCase()
+  const filtrados = vestidos.filter(v => {
+    const mQ = !q || v.style_number?.toLowerCase().includes(q) || v.color?.toLowerCase().includes(q) || v.descripcion?.toLowerCase().includes(q) || v.tienda?.toLowerCase().includes(q)
+    const mT = !tiendaF || v.tienda === tiendaF
+    const mE = estado==='todos' || (estado==='disponibles' ? !v.vendido : v.vendido)
+    return mQ && mT && mE
+  })
+
+  // KPIs
+  const disp       = vestidos.filter(v=>!v.vendido)
+  const vend       = vestidos.filter(v=>v.vendido)
+  const piezas     = disp.reduce((s,v)=>s+(parseInt(v.cantidad)||1),0)
+  const invertido  = vestidos.reduce((s,v)=>s+(parseFloat(v.precio_usd)||0)*(parseInt(v.cantidad)||1),0)
+  const valorVenta = config ? disp.reduce((s,v)=>{
+    const m = calcMXN(parseFloat(v.precio_usd)||0,config)
+    return s+(m||0)*(parseInt(v.cantidad)||1)
+  },0) : 0
+
+  const HEADER_H = 56
+
+  return (
+    <div style={{ minHeight:'100vh', background:cream, fontFamily:'system-ui,-apple-system,sans-serif', color:text }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700&display=swap');
+        *{box-sizing:border-box}
+        input:focus{outline:1px solid ${gold};border-radius:1px;outline-offset:1px}
+        input[type=number]::-webkit-inner-spin-button{opacity:0}
+        ::-webkit-scrollbar{height:4px;width:4px}
+        ::-webkit-scrollbar-track{background:${grayL}}
+        ::-webkit-scrollbar-thumb{background:${gold};border-radius:2px}
+        tr:hover td{background:${gold}06!important}
+      `}</style>
+
+      {/* Header fijo */}
+      <header style={{
+        position:'fixed', top:0, left:0, right:0, zIndex:100,
+        background:cream, borderBottom:`1px solid ${grayL}`,
+        height:HEADER_H, display:'flex', alignItems:'center',
+        padding:'0 20px', gap:12,
+      }}>
+        {/* Logo */}
+        <a href="/" style={{ textDecoration:'none', display:'flex', alignItems:'baseline', gap:8, marginRight:8, flexShrink:0 }}>
+          <span style={{ fontFamily:serif, fontSize:22, fontWeight:700, color:gold }}>BB</span>
+          <span style={{ letterSpacing:'0.2em', fontSize:10, fontWeight:700, textTransform:'uppercase', color:text }}>DRESSES</span>
+        </a>
+
+        {/* KPIs — scroll horizontal en móvil */}
+        <div style={{ display:'flex', gap:0, overflowX:'auto', flex:1, scrollbarWidth:'none' }}>
+          <KPI label="Disponibles" value={`${piezas} piezas`} />
+          <KPI label="Invertido" value={fmtUSD(invertido)} />
+          {config && <KPI label="Valor venta" value={fmtMXN(valorVenta)} />}
+          <KPI label="Vendidos" value={String(vend.length)} />
+        </div>
+
+        {/* Acciones */}
+        <div style={{ display:'flex', gap:8, flexShrink:0 }}>
+          <button onClick={()=>setModalSubir(true)} title="Subir factura" style={{
+            background:gold, border:'none', borderRadius:2,
+            width:34, height:34, fontSize:22, cursor:'pointer', color:white,
+            display:'flex', alignItems:'center', justifyContent:'center', fontWeight:300, lineHeight:1,
+          }}>+</button>
+          <button onClick={()=>setModalCfg(true)} title="Configuración" style={{
+            background:'none', border:`1px solid ${grayL}`, borderRadius:2,
+            width:34, height:34, fontSize:15, cursor:'pointer', color:grayM,
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}>⚙</button>
+        </div>
+      </header>
+
+      {/* Barra de filtros */}
+      <div style={{
+        position:'sticky', top:HEADER_H, zIndex:50,
+        background:cream, borderBottom:`1px solid ${grayL}`,
+        padding:'10px 20px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center',
+      }}>
+        <div style={{ position:'relative', flex:'1 1 180px' }}>
+          <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color:grayM, pointerEvents:'none' }}>⌕</span>
+          <input value={display} onChange={e=>handleFiltro(e.target.value)} placeholder="Buscar style#, color, tienda..."
+            style={{ width:'100%', background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'8px 10px 8px 28px', fontSize:13, color:text, fontFamily:'inherit', outline:'none' }} />
+        </div>
+
+        <select value={tiendaF} onChange={e=>setTiendaF(e.target.value)}
+          style={{ background:white, border:`1px solid ${grayL}`, borderRadius:2, padding:'8px 10px', fontSize:13, color:text, fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+          <option value="">Todas las tiendas</option>
+          {TIENDAS.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+
+        <div style={{ display:'flex', gap:4 }}>
+          {(['todos','disponibles','vendidos'] as const).map(e=>(
+            <button key={e} onClick={()=>setEstado(e)} style={{
+              background: estado===e ? gold : white,
+              border: `1px solid ${estado===e ? gold : grayL}`,
+              borderRadius:20, padding:'5px 13px', fontSize:11,
+              fontWeight: estado===e ? 700 : 400,
+              color: estado===e ? white : grayM,
+              cursor:'pointer', fontFamily:'inherit', textTransform:'capitalize',
+              transition:'all .15s',
+            }}>{e}</button>
+          ))}
+        </div>
+
+        <div style={{ fontSize:11, color:grayM, marginLeft:'auto', flexShrink:0 }}>{filtrados.length} registros</div>
+      </div>
+
+      {/* Tabla */}
+      <main style={{ paddingTop:0 }}>
+        {loading ? (
+          <div style={{ textAlign:'center', padding:'72px 0', color:grayM }}>
+            <div style={{ fontFamily:serif, fontSize:18, marginBottom:6 }}>Cargando inventario</div>
+            <div style={{ fontSize:12, letterSpacing:'.08em' }}>Por favor espera...</div>
+          </div>
+        ) : filtrados.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'72px 0', color:grayM }}>
+            <div style={{ fontFamily:serif, fontSize:20, marginBottom:8, color:text }}>Sin resultados</div>
+            <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
+          </div>
+        ) : (
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:860 }}>
+              <thead>
+                <tr style={{ background:cream, position:'sticky', top:HEADER_H + 50, zIndex:10 }}>
+                  {['Style #','Tienda','Color','Talla','Cant.','Precio USD','T. cambio','Precio MXN','Estado','Acción'].map((h,i)=>(
+                    <th key={i} style={{
+                      padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
+                      letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
+                      borderBottom:`2px solid ${gold}`,
+                      whiteSpace:'nowrap', userSelect:'none',
+                      ...(i===0 ? {position:'sticky',left:0,background:cream,zIndex:11,borderRight:`1px solid ${grayL}`} : {}),
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtrados.map((v, idx) => (
+                  <VestidoRow key={v.id}
+                    vestido={v} config={config} idx={idx}
+                    onUpdate={updateCampo}
+                    onToggleVendido={toggleVendido}
+                    expanded={expanded === v.id}
+                    onToggleExpand={() => setExpanded(p => p===v.id ? null : v.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </main>
+
+      {/* Modal: Subir factura */}
+      {modalSubir && (
+        <Modal title="Subir Factura" onClose={()=>setModalSubir(false)}>
+          <SubirFacturaContent onDone={()=>{ setModalSubir(false); load() }} />
+        </Modal>
+      )}
+
+      {/* Modal: Configuración */}
+      {modalCfg && (
+        <Modal title="Configuración de Precios" onClose={()=>setModalCfg(false)}>
+          <ConfigContent initialConfig={config} onSaved={cfg=>{ setConfig(cfg); setModalCfg(false) }} />
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ── Modal: Subir Factura ──────────────────────────────────────
+function SubirFacturaContent({ onDone }: { onDone: () => void }) {
   const [stage, setStage]       = useState<'upload'|'extracting'|'review'|'saving'|'done'>('upload')
   const [preview, setPreview]   = useState<string|null>(null)
   const [base64, setBase64]     = useState<string|null>(null)
@@ -105,19 +373,12 @@ function TabSubir() {
   const [vestidos, setVestidos] = useState<any[]>([])
   const [error, setError]       = useState<string|null>(null)
   const [saved, setSaved]       = useState<any>(null)
-  const [idCnt, setIdCnt]       = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  function uid() { setIdCnt(c=>c+1); return `v_${Date.now()}_${idCnt}` }
 
   function loadFile(file: File) {
     setMime(file.type||'image/jpeg')
     const r = new FileReader()
-    r.onload = e => {
-      const result = e.target?.result as string
-      setPreview(result)
-      setBase64(result.split(',')[1])
-    }
+    r.onload = e => { const res = e.target?.result as string; setPreview(res); setBase64(res.split(',')[1]) }
     r.readAsDataURL(file)
   }
 
@@ -125,10 +386,10 @@ function TabSubir() {
     if (!base64) return
     setStage('extracting'); setError(null)
     try {
-      const res  = await fetch('/api/extract', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({imageBase64:base64, imageMime:mime}) })
+      const res = await fetch('/api/extract', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({imageBase64:base64,imageMime:mime}) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setInfo({ tienda: data.data.tienda||'', numero_factura: data.data.numero_factura||'', fecha: data.data.fecha||'' })
+      setInfo({ tienda:data.data.tienda||'', numero_factura:data.data.numero_factura||'', fecha:data.data.fecha||'' })
       setVestidos((data.data.vestidos||[]).map((v:any,i:number)=>({...v,_id:`v_${Date.now()}_${i}`})))
       setStage('review')
     } catch(e:any) { setError(e.message); setStage('upload') }
@@ -137,379 +398,201 @@ function TabSubir() {
   async function save() {
     setStage('saving')
     try {
-      const res  = await fetch('/api/vestidos', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ factura: info, vestidos: vestidos.map(({_id,...v})=>v) }) })
+      const res = await fetch('/api/vestidos', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ factura:info, vestidos:vestidos.map(({_id,...v})=>v) }) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setSaved(data); setStage('done')
     } catch(e:any) { setError(e.message); setStage('review') }
   }
 
-  function reset() {
-    setStage('upload'); setPreview(null); setBase64(null)
-    setInfo({tienda:'',numero_factura:'',fecha:''}); setVestidos([]); setError(null); setSaved(null)
-  }
-
-  const styleGroups: Record<string,number[]> = {}
-  vestidos.forEach((v,i)=>{ const k=v.style_number||`_e${i}`; if(!styleGroups[k])styleGroups[k]=[]; styleGroups[k].push(i) })
-  const styleKeys = Object.keys(styleGroups)
-  const styleColor: Record<string,string> = {}
-  styleKeys.forEach((k,i)=>{ styleColor[k]=i%2===0?'rgba(201,168,76,0.04)':'transparent' })
+  const inp: React.CSSProperties = { background:white, border:`1px solid ${grayL}`, borderRadius:2, color:text, padding:'8px 10px', fontSize:13, width:'100%', fontFamily:'system-ui', outline:'none' }
   const totalPiezas = vestidos.reduce((s,v)=>s+(parseInt(v.cantidad)||0),0)
   const totalUSD    = vestidos.reduce((s,v)=>s+((parseFloat(v.precio_usd)||0)*(parseInt(v.cantidad)||1)),0)
 
   if (stage==='done') return (
-    <div style={{textAlign:'center',padding:'48px 24px'}}>
-      <div style={{fontSize:52,marginBottom:16}}>✅</div>
-      <h2 style={{fontSize:22,marginBottom:8}}>¡Factura guardada!</h2>
-      <p style={{color:th.muted}}><span style={{color:th.gold,fontWeight:700}}>{saved?.vestidos_guardados}</span> vestidos de <span style={{color:th.gold,fontWeight:700}}>{info.tienda}</span> guardados.</p>
-      <button onClick={reset} style={{marginTop:24,background:th.gold,border:'none',borderRadius:12,color:'#0D0D0D',padding:'14px 28px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit'}}>Subir otra factura</button>
+    <div style={{ textAlign:'center', padding:'28px 0' }}>
+      <div style={{ fontFamily:serif, fontSize:22, marginBottom:8, color:text }}>Factura guardada</div>
+      <p style={{ color:grayM, marginBottom:24 }}>
+        <strong style={{color:gold}}>{saved?.vestidos_guardados}</strong> vestidos de <strong style={{color:gold}}>{info.tienda}</strong> guardados correctamente.
+      </p>
+      <button onClick={onDone} style={{ background:gold, border:'none', borderRadius:2, color:white, padding:'12px 32px', fontWeight:700, cursor:'pointer', fontFamily:'inherit', fontSize:14 }}>Cerrar</button>
     </div>
   )
 
   return (
-    <div>
-      {error && <div style={{background:`${th.error}18`,border:`1px solid ${th.error}44`,borderRadius:12,padding:'12px 16px',color:th.error,marginBottom:18}}>⚠️ {error}</div>}
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      {error && <div style={{ background:`${terra}10`, border:`1px solid ${terra}44`, borderRadius:2, padding:'10px 14px', color:terra, fontSize:13 }}>⚠ {error}</div>}
 
       {stage==='upload' && !preview && (
-        <div onClick={()=>fileRef.current?.click()} style={{border:`2px dashed ${th.border}`,borderRadius:16,padding:'52px 24px',textAlign:'center',cursor:'pointer'}}
-          onDragOver={e=>{e.preventDefault();(e.currentTarget as HTMLElement).style.borderColor=th.gold}}
-          onDragLeave={e=>{(e.currentTarget as HTMLElement).style.borderColor=th.border}}
-          onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f?.type.startsWith('image/'))loadFile(f)}}>
-          <div style={{fontSize:48,marginBottom:14}}>📄</div>
-          <div style={{fontSize:17,fontWeight:700,marginBottom:6}}>Sube la foto de la factura</div>
-          <div style={{fontSize:13,color:th.muted}}>Toca aquí o arrastra · JPG, PNG, WEBP, HEIC</div>
+        <div onClick={()=>fileRef.current?.click()}
+          onDragOver={e=>e.preventDefault()}
+          onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f?.type.startsWith('image/'))loadFile(f)}}
+          style={{ border:`1.5px dashed ${grayL}`, borderRadius:2, padding:'36px 24px', textAlign:'center', cursor:'pointer' }}>
+          <div style={{ fontFamily:serif, fontSize:16, marginBottom:6, color:text }}>Sube la foto de la factura</div>
+          <div style={{ fontSize:12, color:grayM }}>Toca aquí o arrastra · JPG, PNG, WEBP, HEIC</div>
           <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={e=>{if(e.target.files?.[0])loadFile(e.target.files[0]);e.target.value=''}} />
         </div>
       )}
 
       {stage==='upload' && preview && (
-        <div style={{display:'flex',flexDirection:'column',gap:16}}>
-          <div style={{position:'relative',borderRadius:12,overflow:'hidden',border:`1px solid ${th.border}`}}>
-            <img src={preview} alt="Factura" style={{width:'100%',maxHeight:380,objectFit:'contain',display:'block',background:'#111'}} />
-            <button onClick={reset} style={{position:'absolute',top:10,right:10,background:'rgba(0,0,0,0.8)',border:`1px solid ${th.border}`,borderRadius:'50%',width:30,height:30,color:th.text,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+        <>
+          <div style={{ position:'relative', borderRadius:2, overflow:'hidden', border:`1px solid ${grayL}` }}>
+            <img src={preview} alt="" style={{ width:'100%', maxHeight:300, objectFit:'contain', display:'block', background:grayL }} />
+            <button onClick={()=>{setPreview(null);setBase64(null)}} style={{ position:'absolute',top:8,right:8,background:'rgba(26,26,26,0.7)',border:'none',borderRadius:'50%',width:28,height:28,color:white,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center' }}>✕</button>
           </div>
-          <div style={{background:th.surface,border:`1px solid ${th.border}`,borderRadius:14,padding:20}}>
-            <h3 style={{fontSize:15,marginBottom:4}}>Imagen cargada ✓</h3>
-            <p style={{fontSize:13,color:th.muted,lineHeight:1.6,marginBottom:16}}>Claude analizará la factura y extraerá todos los vestidos automáticamente.</p>
-            <button onClick={extract} style={{background:th.gold,border:'none',borderRadius:12,color:'#0D0D0D',padding:'14px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',width:'100%'}}>✨ Analizar con IA</button>
-          </div>
-        </div>
+          <button onClick={extract} style={{ background:gold,border:'none',borderRadius:2,color:white,padding:'13px',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit' }}>Analizar con IA</button>
+        </>
       )}
 
       {stage==='extracting' && (
-        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,padding:'56px 0'}}>
-          <div style={{width:44,height:44,border:`3px solid ${th.border}`,borderTop:`3px solid ${th.gold}`,borderRadius:'50%',animation:'spin .8s linear infinite'}} />
-          <div style={{color:th.muted,fontSize:14}}>Analizando factura con IA...</div>
+        <div style={{ textAlign:'center', padding:'32px 0', color:grayM }}>
+          <div style={{ fontFamily:serif, fontSize:16, marginBottom:6 }}>Analizando factura...</div>
+          <div style={{ fontSize:12 }}>Claude está extrayendo los datos</div>
         </div>
       )}
 
       {(stage==='review'||stage==='saving') && (
-        <div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,background:th.surfaceAlt,border:`1px solid ${th.border}`,borderRadius:12,padding:'14px 16px',marginBottom:16}}>
-            {[['Tienda','select'],['# Factura','text'],['Fecha','date']].map(([label,type])=>(
-              <div key={label}>
-                <div style={{fontSize:10,color:th.muted,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:5}}>{label}</div>
+        <>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+            {[['Tienda','tienda','select'],['# Factura','numero_factura','text'],['Fecha','fecha','date']].map(([label,key,type])=>(
+              <div key={key}>
+                <div style={{ fontSize:10,color:grayM,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:4 }}>{label}</div>
                 {type==='select'
-                  ? <select value={info.tienda} onChange={e=>setInfo(p=>({...p,tienda:e.target.value}))} style={{background:th.bg,border:`1px solid ${th.border}`,borderRadius:6,color:th.text,padding:'7px 9px',fontSize:13,width:'100%',fontFamily:'inherit'}}>
+                  ? <select value={info.tienda} onChange={e=>setInfo(p=>({...p,tienda:e.target.value}))} style={inp}>
                       <option value="">Selecciona...</option>
                       {TIENDAS.map(t=><option key={t} value={t}>{t}</option>)}
                     </select>
-                  : <input type={type} value={label==='# Factura'?info.numero_factura:info.fecha}
-                      onChange={e=>setInfo(p=>({...p,[label==='# Factura'?'numero_factura':'fecha']:e.target.value}))}
-                      style={{background:th.bg,border:`1px solid ${th.border}`,borderRadius:6,color:th.text,padding:'7px 9px',fontSize:13,width:'100%',fontFamily:'inherit',outline:'none'}} />
+                  : <input type={type} value={(info as any)[key]} onChange={e=>setInfo(p=>({...p,[key]:e.target.value}))} style={inp} />
                 }
               </div>
             ))}
           </div>
 
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-            <div style={{fontWeight:700,fontSize:15}}>
-              Vestidos &nbsp;
-              <span style={{background:'rgba(201,168,76,.15)',color:th.gold,border:'1px solid rgba(201,168,76,.25)',borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700,fontFamily:'monospace'}}>{vestidos.length} filas</span>
-            </div>
-            <button onClick={()=>setVestidos(p=>[...p,{_id:`v_${Date.now()}`,style_number:'',color:'',talla:'',cantidad:1,precio_usd:'',descripcion:''}])} style={{background:'transparent',border:`1px solid ${th.gold}`,color:th.gold,borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>+ Agregar</button>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontFamily:serif, fontSize:15, color:text }}>Vestidos <span style={{ fontSize:12,color:grayM }}>({vestidos.length})</span></span>
+            <button onClick={()=>setVestidos(p=>[...p,{_id:`v_${Date.now()}`,style_number:'',color:'',talla:'',cantidad:1,precio_usd:'',descripcion:''}])}
+              style={{ background:'none',border:`1px solid ${gold}`,borderRadius:2,color:gold,padding:'5px 12px',cursor:'pointer',fontSize:12,fontFamily:'inherit' }}>+ Agregar</button>
           </div>
 
-          <div style={{overflowX:'auto',borderRadius:10,border:`1px solid ${th.border}`,marginBottom:12}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <div style={{ overflowX:'auto', border:`1px solid ${grayL}`, borderRadius:2 }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead>
-                <tr style={{background:th.surfaceAlt}}>
+                <tr style={{ background:grayL }}>
                   {['Style #','Color','Talla','Cant.','Precio USD','Descripción',''].map((h,i)=>(
-                    <th key={i} style={{padding:'10px 9px',textAlign:'left',color:th.muted,fontSize:10,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',borderBottom:`1px solid ${th.border}`,whiteSpace:'nowrap'}}>{h}</th>
+                    <th key={i} style={{ padding:'7px 8px',textAlign:'left',color:grayM,fontSize:9,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',borderBottom:`1px solid ${grayL}`,whiteSpace:'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {vestidos.map((v,i)=>{
-                  const k = v.style_number||`_e${i}`
-                  const bg = styleColor[k]||'transparent'
-                  return (
-                    <tr key={v._id} style={{background:bg}}>
-                      {[
-                        <input className="ci" style={{fontFamily:'monospace',fontWeight:700,color:th.gold}} value={v.style_number} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],style_number:e.target.value};return n})} />,
-                        <input className="ci" value={v.color} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],color:e.target.value};return n})} />,
-                        <input className="ci" value={v.talla} style={{textAlign:'center'}} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],talla:e.target.value};return n})} />,
-                        <input className="ci" type="number" value={v.cantidad} style={{textAlign:'center'}} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],cantidad:e.target.value};return n})} />,
-                        <input className="ci" type="number" value={v.precio_usd} step="0.01" onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],precio_usd:e.target.value};return n})} />,
-                        <input className="ci" value={v.descripcion} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],descripcion:e.target.value};return n})} />,
-                        <button onClick={()=>setVestidos(p=>p.filter((_,j)=>j!==i))} style={{background:'transparent',border:'none',color:th.error,cursor:'pointer',fontSize:15,padding:'2px 5px',opacity:.5}}>✕</button>
-                      ].map((cell,ci)=><td key={ci} style={{padding:'5px 7px',borderBottom:`1px solid ${th.border}`,verticalAlign:'middle'}}>{cell}</td>)}
-                    </tr>
-                  )
-                })}
+                {vestidos.map((v,i)=>(
+                  <tr key={v._id}>
+                    {[
+                      <input className="fi" style={{fontFamily:'monospace',fontWeight:700,color:gold}} value={v.style_number} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],style_number:e.target.value};return n})} />,
+                      <input className="fi" value={v.color} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],color:e.target.value};return n})} />,
+                      <input className="fi" value={v.talla} style={{textAlign:'center'}} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],talla:e.target.value};return n})} />,
+                      <input className="fi" type="number" value={v.cantidad} style={{textAlign:'center',width:40}} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],cantidad:e.target.value};return n})} />,
+                      <input className="fi" type="number" step="0.01" value={v.precio_usd} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],precio_usd:e.target.value};return n})} />,
+                      <input className="fi" value={v.descripcion||''} onChange={e=>setVestidos(p=>{const n=[...p];n[i]={...n[i],descripcion:e.target.value};return n})} />,
+                      <button onClick={()=>setVestidos(p=>p.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:terra,cursor:'pointer',fontSize:15,padding:'0 4px'}}>✕</button>
+                    ].map((cell,ci)=><td key={ci} style={{padding:'3px 6px',borderBottom:`1px solid ${grayL}`,verticalAlign:'middle'}}>{cell}</td>)}
+                  </tr>
+                ))}
               </tbody>
             </table>
-            <style>{`.ci{background:${th.surfaceAlt};border:1px solid ${th.border};border-radius:4px;color:${th.text};padding:4px 6px;font-size:12px;width:100%;font-family:inherit;outline:none}`}</style>
+            <style>{`.fi{background:${grayL};border:1px solid ${grayL};border-radius:1px;color:${text};padding:4px 6px;font-size:12px;width:100%;font-family:system-ui;outline:none}`}</style>
           </div>
 
-          <div style={{display:'flex',gap:16,padding:'12px 16px',background:th.surfaceAlt,borderRadius:10,border:`1px solid ${th.border}`,marginBottom:16,flexWrap:'wrap'}}>
-            <div style={{fontSize:13}}>Total piezas <strong>{totalPiezas}</strong></div>
-            <div style={{fontSize:13}}>Total USD <strong style={{color:th.gold}}>{fmtUSD(totalUSD)}</strong></div>
+          <div style={{ display:'flex', gap:20, padding:'10px 14px', background:grayL, borderRadius:2, fontSize:12 }}>
+            <span>Total piezas <strong>{totalPiezas}</strong></span>
+            <span>Total USD <strong style={{color:gold}}>{fmtUSD(totalUSD)}</strong></span>
           </div>
 
-          {!info.tienda && <p style={{color:th.error,fontSize:13,marginBottom:10}}>⚠️ Selecciona la tienda antes de guardar.</p>}
+          {!info.tienda && <p style={{ color:terra, fontSize:12, margin:0 }}>⚠ Selecciona la tienda antes de guardar.</p>}
 
-          <div style={{display:'flex',gap:10}}>
-            <button onClick={reset} style={{flex:1,background:'transparent',border:`1px solid ${th.border}`,borderRadius:10,color:th.muted,padding:'13px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>Cancelar</button>
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={()=>{setStage('upload');setVestidos([]);setPreview(null);setBase64(null)}}
+              style={{ flex:1,background:'none',border:`1px solid ${grayL}`,borderRadius:2,color:grayM,padding:'11px',cursor:'pointer',fontFamily:'inherit',fontSize:13 }}>Cancelar</button>
             <button onClick={save} disabled={!info.tienda||vestidos.length===0||stage==='saving'}
-              style={{flex:2,background:th.gold,border:'none',borderRadius:10,color:'#0D0D0D',padding:'13px',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit',opacity:stage==='saving'?.6:1}}>
-              {stage==='saving' ? 'Guardando...' : `✓ Guardar (${vestidos.length})`}
+              style={{ flex:2,background:gold,border:'none',borderRadius:2,color:white,padding:'11px',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:'inherit',opacity:stage==='saving'?.6:1 }}>
+              {stage==='saving' ? 'Guardando...' : `Guardar ${vestidos.length} vestidos`}
             </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
 }
 
-// ── TAB: Inventario — cards ───────────────────────────────────
-function VestidoCard({ vestido, config, onUpdate, onToggle }: {
-  vestido: any; config: any;
-  onUpdate: (id: string, campo: string, valor: string) => void;
-  onToggle: (v: any) => void;
-}) {
-  const mxn = calcMXN(parseFloat(vestido.precio_usd) || 0, config)
-
-  function handleBlur(campo: string, val: string) {
-    if (String(vestido[campo] ?? '') !== val) onUpdate(vestido.id, campo, val)
-  }
-
-  const fieldStyle: React.CSSProperties = {
-    background: 'transparent', border: 'none', color: th.text,
-    fontSize: 15, fontFamily: 'system-ui', outline: 'none', padding: 0, width: '100%',
-  }
-
-  return (
-    <div style={{
-      background: th.surface, border: `1px solid ${th.border}`,
-      borderRadius: 18, marginBottom: 14, overflow: 'hidden',
-      opacity: vestido.vendido ? 0.72 : 1,
-    }}>
-      {/* Header */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${th.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <input
-            defaultValue={vestido.style_number}
-            onBlur={e => handleBlur('style_number', e.target.value)}
-            style={{ ...fieldStyle, fontFamily: 'monospace', fontWeight: 800, fontSize: 18, color: th.gold }}
-          />
-          <div style={{ fontSize: 12, color: th.muted, marginTop: 2 }}>{vestido.tienda}</div>
-        </div>
-        <span style={{
-          flexShrink: 0,
-          background: vestido.vendido ? `${th.error}22` : `${th.success}22`,
-          color: vestido.vendido ? th.error : th.success,
-          border: `1px solid ${vestido.vendido ? th.error : th.success}44`,
-          borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700,
-        }}>{vestido.vendido ? 'Vendido' : 'Disponible'}</span>
-      </div>
-
-      {/* Campos editables en grid 2x2 */}
-      <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {[
-          { label: 'Color',      campo: 'color' },
-          { label: 'Talla',      campo: 'talla' },
-          { label: 'Cantidad',   campo: 'cantidad',   type: 'number' },
-          { label: 'Precio USD', campo: 'precio_usd', type: 'number' },
-        ].map(({ label, campo, type = 'text' }) => (
-          <div key={campo} style={{ background: th.surfaceAlt, borderRadius: 10, padding: '9px 12px' }}>
-            <div style={{ fontSize: 10, color: th.muted, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-            <input
-              type={type}
-              defaultValue={vestido[campo] ?? ''}
-              onBlur={e => handleBlur(campo, e.target.value)}
-              style={{ ...fieldStyle, fontSize: 15 }}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Descripcion (ancho completo) */}
-      <div style={{ padding: '0 16px 14px' }}>
-        <div style={{ background: th.surfaceAlt, borderRadius: 10, padding: '9px 12px' }}>
-          <div style={{ fontSize: 10, color: th.muted, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 4 }}>Descripción</div>
-          <input
-            defaultValue={vestido.descripcion || ''}
-            onBlur={e => handleBlur('descripcion', e.target.value)}
-            style={{ ...fieldStyle, fontSize: 14 }}
-          />
-        </div>
-      </div>
-
-      {/* Footer: precio MXN + botón */}
-      <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${th.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        {mxn !== null ? (
-          <div>
-            <div style={{ fontSize: 10, color: th.muted, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 2 }}>Precio venta MXN</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: th.success }}>{fmtMXN(mxn)}</div>
-          </div>
-        ) : <div />}
-        <button onClick={() => onToggle(vestido)} style={{
-          background: vestido.vendido ? th.surfaceAlt : th.gold,
-          border: vestido.vendido ? `1px solid ${th.border}` : 'none',
-          borderRadius: 12, padding: '12px 18px',
-          color: vestido.vendido ? th.muted : '#0D0D0D',
-          fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
-          whiteSpace: 'nowrap', flexShrink: 0,
-        }}>
-          {vestido.vendido ? '↩ Devolver' : '✓ Marcar vendido'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function TabInventario() {
-  const [vestidos, setVestidos] = useState<any[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [display, setDisplay]   = useState('')
-  const [filtro, setFiltro]     = useState('')
-  const [soloDisp, setSoloDisp] = useState(false)
-  const [config, setConfig]     = useState<any>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    fetch('/api/vestidos?all=true').then(r=>r.json()).then(d=>{ setVestidos(d.data||[]); setLoading(false) })
-    fetch('/api/config').then(r=>r.json()).then(d=>setConfig(d.data||null))
-  }, [])
-
-  function handleFiltro(val: string) {
-    setDisplay(val)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => setFiltro(val), 300)
-  }
-
-  async function toggleVendido(v: any) {
-    await fetch('/api/vestidos', { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:v.id,vendido:!v.vendido}) })
-    setVestidos(p=>p.map(x=>x.id===v.id?{...x,vendido:!x.vendido}:x))
-  }
-
-  async function updateCampo(id: string, campo: string, valor: string) {
-    await fetch('/api/vestidos', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id,[campo]:valor}) })
-    setVestidos(p=>p.map(x=>x.id===id?{...x,[campo]:valor}:x))
-  }
-
-  const filtrados = vestidos.filter(v => {
-    const q = filtro.toLowerCase()
-    const match = !q || v.style_number?.toLowerCase().includes(q) || v.color?.toLowerCase().includes(q) || v.tienda?.toLowerCase().includes(q)
-    return match && (!soloDisp || !v.vendido)
+// ── Modal: Configuración de precios ──────────────────────────
+function ConfigContent({ initialConfig, onSaved }: { initialConfig: any; onSaved: (cfg: any) => void }) {
+  const [cfg, setCfg] = useState({
+    tipo_cambio_usd_mxn: String(initialConfig?.tipo_cambio_usd_mxn || '18.00'),
+    markup_porcentaje:   String(initialConfig?.markup_porcentaje   || '100'),
+    cargo_adicional_mxn: String(initialConfig?.cargo_adicional_mxn || '0'),
+    notas:               initialConfig?.notas || '',
   })
-
-  if (loading) return <div style={{textAlign:'center',padding:48,color:th.muted}}>Cargando inventario...</div>
-
-  return (
-    <div>
-      {/* Search */}
-      <div style={{ position:'relative', marginBottom:12 }}>
-        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16, pointerEvents:'none' }}>🔍</span>
-        <input value={display} onChange={e=>handleFiltro(e.target.value)} placeholder="Buscar style#, color, tienda..."
-          style={{ width:'100%', background:th.surface, border:`1px solid ${th.border}`, borderRadius:12, color:th.text, padding:'12px 12px 12px 42px', fontSize:14, fontFamily:'inherit', outline:'none' }} />
-      </div>
-
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:th.muted, cursor:'pointer' }}>
-          <input type="checkbox" checked={soloDisp} onChange={e=>setSoloDisp(e.target.checked)} />
-          Solo disponibles
-        </label>
-        <div style={{ fontSize:13, color:th.muted }}>
-          {filtrados.filter(v=>!v.vendido).length} disp / {filtrados.length} total
-        </div>
-      </div>
-
-      {filtrados.map(v => (
-        <VestidoCard key={v.id} vestido={v} config={config} onUpdate={updateCampo} onToggle={toggleVendido} />
-      ))}
-    </div>
-  )
-}
-
-// ── TAB: Precios ──────────────────────────────────────────────
-function TabPrecios() {
-  const [config, setConfig]   = useState({ tipo_cambio_usd_mxn:'18.00', markup_porcentaje:'100', cargo_adicional_mxn:'0', notas:'' })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving]   = useState(false)
-  const [saved, setSaved]     = useState(false)
-
-  useEffect(() => {
-    fetch('/api/config').then(r=>r.json()).then(d=>{
-      if (d.data) setConfig({ tipo_cambio_usd_mxn: String(d.data.tipo_cambio_usd_mxn), markup_porcentaje: String(d.data.markup_porcentaje), cargo_adicional_mxn: String(d.data.cargo_adicional_mxn), notas: d.data.notas||'' })
-      setLoading(false)
-    })
-  }, [])
+  const [saving, setSaving] = useState(false)
 
   async function guardar() {
     setSaving(true)
-    await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config) })
-    setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500)
+    await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg) })
+    setSaving(false)
+    onSaved({
+      ...initialConfig,
+      tipo_cambio_usd_mxn: parseFloat(cfg.tipo_cambio_usd_mxn),
+      markup_porcentaje:   parseFloat(cfg.markup_porcentaje),
+      cargo_adicional_mxn: parseFloat(cfg.cargo_adicional_mxn),
+      notas: cfg.notas,
+    })
   }
 
-  const ejemplo = 319
-  const enMXN   = ejemplo * parseFloat(config.tipo_cambio_usd_mxn||'0')
-  const conMark = enMXN * (1 + parseFloat(config.markup_porcentaje||'0') / 100)
-  const final   = Math.ceil(conMark + parseFloat(config.cargo_adicional_mxn||'0'))
+  const ejemplo  = 319
+  const enMXN    = ejemplo * parseFloat(cfg.tipo_cambio_usd_mxn||'0')
+  const conMark  = enMXN * (1 + parseFloat(cfg.markup_porcentaje||'0') / 100)
+  const final    = Math.ceil(conMark + parseFloat(cfg.cargo_adicional_mxn||'0'))
 
-  if (loading) return <div style={{textAlign:'center',padding:48,color:th.muted}}>Cargando...</div>
+  const inp: React.CSSProperties = { background:white, border:`1px solid ${grayL}`, borderRadius:2, color:text, padding:'10px 12px', fontSize:15, width:'100%', fontFamily:'system-ui', outline:'none' }
+  const lbl: React.CSSProperties = { display:'block', fontSize:10, color:grayM, fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:5 }
 
   return (
-    <div style={{maxWidth:480}}>
-      <h2 style={{fontSize:17,marginBottom:4}}>Configuración de Precios</h2>
-      <p style={{color:th.muted,fontSize:13,marginBottom:24}}>Estos valores aplican a todos los vestidos al calcular el precio de venta.</p>
-
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       {[
-        { key:'tipo_cambio_usd_mxn', label:'Tipo de cambio USD → MXN', hint:'Ej: 18.50' },
-        { key:'markup_porcentaje',   label:'Markup / Ganancia (%)',     hint:'100 = doble del costo' },
-        { key:'cargo_adicional_mxn', label:'Cargo adicional (MXN)',     hint:'Flete, importación, etc.' },
+        { key:'tipo_cambio_usd_mxn', label:'Tipo de cambio USD → MXN' },
+        { key:'markup_porcentaje',   label:'Markup / Ganancia (%)' },
+        { key:'cargo_adicional_mxn', label:'Cargo adicional (MXN)' },
       ].map(f=>(
-        <div key={f.key} style={{marginBottom:16}}>
-          <label style={{display:'block',fontSize:11,color:th.muted,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:5}}>{f.label}</label>
-          <input type="number" step="0.01" value={(config as any)[f.key]}
-            onChange={e=>setConfig(p=>({...p,[f.key]:e.target.value}))}
-            placeholder={f.hint}
-            style={{background:th.surface,border:`1px solid ${th.border}`,borderRadius:12,color:th.text,padding:'13px 14px',fontSize:16,width:'100%',fontFamily:'inherit',outline:'none'}} />
+        <div key={f.key}>
+          <label style={lbl}>{f.label}</label>
+          <input type="number" step="0.01" value={(cfg as any)[f.key]}
+            onChange={e=>setCfg(p=>({...p,[f.key]:e.target.value}))} style={inp} />
         </div>
       ))}
 
-      <div style={{marginBottom:24}}>
-        <label style={{display:'block',fontSize:11,color:th.muted,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:5}}>Notas</label>
-        <textarea value={config.notas} onChange={e=>setConfig(p=>({...p,notas:e.target.value}))} rows={2}
-          style={{background:th.surface,border:`1px solid ${th.border}`,borderRadius:12,color:th.text,padding:'13px 14px',fontSize:13,width:'100%',fontFamily:'inherit',outline:'none',resize:'vertical'}} />
+      <div>
+        <label style={lbl}>Notas</label>
+        <textarea value={cfg.notas} onChange={e=>setCfg(p=>({...p,notas:e.target.value}))} rows={2}
+          style={{ ...inp, resize:'vertical', fontSize:13 }} />
       </div>
 
-      <div style={{background:th.surfaceAlt,border:`1px solid ${th.border}`,borderRadius:14,padding:'16px 18px',marginBottom:20}}>
-        <div style={{fontSize:11,color:th.muted,fontWeight:700,letterSpacing:'.07em',textTransform:'uppercase',marginBottom:10}}>Ejemplo (vestido a $319 USD)</div>
-        <div style={{fontSize:13,display:'flex',flexDirection:'column',gap:6}}>
-          <div style={{display:'flex',justifyContent:'space-between',color:th.muted}}><span>Costo en MXN</span><span style={{color:th.text}}>{fmtMXN(enMXN)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',color:th.muted}}><span>+ Markup {config.markup_porcentaje}%</span><span style={{color:th.text}}>+{fmtMXN(enMXN*parseFloat(config.markup_porcentaje||'0')/100)}</span></div>
-          {parseFloat(config.cargo_adicional_mxn||'0')>0 && <div style={{display:'flex',justifyContent:'space-between',color:th.muted}}><span>+ Cargo adicional</span><span style={{color:th.text}}>+{fmtMXN(parseFloat(config.cargo_adicional_mxn))}</span></div>}
-          <div style={{borderTop:`1px solid ${th.border}`,marginTop:4,paddingTop:8,display:'flex',justifyContent:'space-between'}}>
+      {/* Preview en tiempo real */}
+      <div style={{ background:grayL, borderRadius:2, padding:'14px 16px' }}>
+        <div style={{ fontSize:9, color:grayM, fontWeight:700, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:10 }}>Preview — vestido a $319 USD</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:5, fontSize:13 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', color:grayM }}><span>En MXN</span><span style={{color:text}}>{fmtMXN(enMXN)}</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', color:grayM }}><span>+ Markup {cfg.markup_porcentaje}%</span><span style={{color:text}}>+{fmtMXN(enMXN*parseFloat(cfg.markup_porcentaje||'0')/100)}</span></div>
+          {parseFloat(cfg.cargo_adicional_mxn||'0')>0 && (
+            <div style={{ display:'flex', justifyContent:'space-between', color:grayM }}><span>+ Cargo adicional</span><span style={{color:text}}>+{fmtMXN(parseFloat(cfg.cargo_adicional_mxn))}</span></div>
+          )}
+          <div style={{ borderTop:`1px solid ${grayM}44`, marginTop:4, paddingTop:8, display:'flex', justifyContent:'space-between' }}>
             <strong>Precio de venta</strong>
-            <strong style={{color:th.gold,fontSize:18}}>{fmtMXN(final)}</strong>
+            <strong style={{ fontFamily:serif, fontSize:18, color:gold }}>{fmtMXN(final)}</strong>
           </div>
         </div>
       </div>
 
-      <button onClick={guardar} disabled={saving} style={{background:th.gold,border:'none',borderRadius:12,color:'#0D0D0D',padding:'15px 24px',fontWeight:700,fontSize:15,cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
-        {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar configuración'}
+      <button onClick={guardar} disabled={saving}
+        style={{ background:gold,border:'none',borderRadius:2,color:white,padding:'13px',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit',width:'100%',opacity:saving?.7:1 }}>
+        {saving ? 'Guardando...' : 'Guardar configuración'}
       </button>
     </div>
   )
