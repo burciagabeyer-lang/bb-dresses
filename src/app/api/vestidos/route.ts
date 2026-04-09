@@ -136,13 +136,17 @@ export async function PATCH(request: NextRequest) {
     if (accion === 'vender') {
       const { data, error } = await supabase.rpc('vender_pieza', { p_id: id })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ success: true, cantidad: data.cantidad, cantidad_vendida: data.cantidad_vendida, vendido: data.vendido })
+      const result = typeof data === 'string' ? JSON.parse(data) : data
+      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json({ success: true, cantidad: result.cantidad, cantidad_vendida: result.cantidad_vendida, vendido: result.vendido })
     }
 
     if (accion === 'devolver') {
       const { data, error } = await supabase.rpc('devolver_pieza', { p_id: id })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ success: true, cantidad: data.cantidad, cantidad_vendida: data.cantidad_vendida, vendido: data.vendido })
+      const result = typeof data === 'string' ? JSON.parse(data) : data
+      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json({ success: true, cantidad: result.cantidad, cantidad_vendida: result.cantidad_vendida, vendido: result.vendido })
     }
 
     // PATCH genérico para editar campos
