@@ -135,7 +135,8 @@ export async function PATCH(request: NextRequest) {
     if (readError) throw readError
 
     if (accion === 'vender') {
-      const nuevaCantidad = Math.max(0, (v.cantidad || 0) - 1)
+      if (v.cantidad <= 0) return NextResponse.json({ error: 'Sin disponibles' }, { status: 400 })
+      const nuevaCantidad = v.cantidad - 1
       const nuevaVendida  = (v.cantidad_vendida || 0) + 1
       const { error } = await supabase.from('vestidos').update({
         cantidad:         nuevaCantidad,
@@ -148,11 +149,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (accion === 'devolver') {
-      if ((v.cantidad_vendida || 0) === 0) {
-        return NextResponse.json({ error: 'No hay piezas vendidas para devolver' }, { status: 400 })
-      }
-      const nuevaCantidad = (v.cantidad || 0) + 1
-      const nuevaVendida  = Math.max(0, (v.cantidad_vendida || 0) - 1)
+      if ((v.cantidad_vendida || 0) <= 0) return NextResponse.json({ error: 'Sin vendidas' }, { status: 400 })
+      const nuevaCantidad = v.cantidad + 1
+      const nuevaVendida  = v.cantidad_vendida - 1
       const { error } = await supabase.from('vestidos').update({
         cantidad:         nuevaCantidad,
         cantidad_vendida: nuevaVendida,

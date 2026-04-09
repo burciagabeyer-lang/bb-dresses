@@ -117,11 +117,13 @@ function VestidoRow({ vestido, config, idx, onUpdate, onVender, onDevolver, expa
             onClick={e=>e.stopPropagation()}
             style={{ ...ci, textAlign:'center', fontFamily:'monospace', width:44 }} />
         </td>
-        <td style={{ ...td, minWidth:70, textAlign:'center' }}>
-          <span style={{ fontFamily:'monospace', fontWeight:600 }}>{vestido.cantidad}</span>
-          {(vestido.cantidad_vendida || 0) > 0 && (
-            <span style={{ fontSize:10, color:terra, marginLeft:4 }}>{vestido.cantidad_vendida}v</span>
-          )}
+        {/* DISP. */}
+        <td style={{ ...td, minWidth:52, textAlign:'center', background: vestido.cantidad > 0 ? '#F0F5EC' : rowBg }}>
+          <span style={{ fontFamily:'monospace', fontWeight:700 }}>{vestido.cantidad}</span>
+        </td>
+        {/* VEND. */}
+        <td style={{ ...td, minWidth:52, textAlign:'center', background: (vestido.cantidad_vendida||0) > 0 ? '#FDF0EE' : rowBg }}>
+          <span style={{ fontFamily:'monospace', color:'#8B4A3A' }}>{vestido.cantidad_vendida || 0}</span>
         </td>
         <td style={{ ...td, minWidth:100 }}>
           <input type="number" step="0.01" value={precio}
@@ -173,27 +175,32 @@ function VestidoRow({ vestido, config, idx, onUpdate, onVender, onDevolver, expa
             borderRadius:2, padding:'2px 8px', fontSize:10, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase',
           }}>{vestido.vendido ? 'Vendido' : 'Disponible'}</span>
         </td>
-        <td style={{ ...td, minWidth:130 }} onClick={e=>e.stopPropagation()}>
+        <td style={{ ...td, minWidth:145 }} onClick={e=>e.stopPropagation()}>
           <div style={{ display:'flex', gap:4 }}>
-            {vestido.cantidad > 0 && (
-              <button onClick={e=>{e.stopPropagation();onVender(vestido)}} style={{
+            <button
+              onClick={e=>{e.stopPropagation(); onVender(vestido)}}
+              disabled={vestido.cantidad <= 0}
+              style={{
                 background:gold, border:'none', borderRadius:2, padding:'3px 10px',
-                fontSize:11, color:white, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
+                fontSize:11, color:white, fontFamily:'inherit', whiteSpace:'nowrap',
+                cursor: vestido.cantidad > 0 ? 'pointer' : 'default',
+                opacity: vestido.cantidad > 0 ? 1 : 0.3,
               }}>✓ Vender</button>
-            )}
-            {(vestido.cantidad_vendida||0) > 0 && (
-              <button onClick={e=>{e.stopPropagation();onDevolver(vestido)}} style={{
+            <button
+              onClick={e=>{e.stopPropagation(); onDevolver(vestido)}}
+              disabled={(vestido.cantidad_vendida||0) <= 0}
+              style={{
                 background:'transparent', border:`1px solid ${grayM}`, borderRadius:2,
-                padding:'3px 9px', fontSize:11, color:grayM,
-                cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap',
-              }}>↩ Devolver</button>
-            )}
+                padding:'3px 9px', fontSize:11, color:grayM, fontFamily:'inherit', whiteSpace:'nowrap',
+                cursor: (vestido.cantidad_vendida||0) > 0 ? 'pointer' : 'default',
+                opacity: (vestido.cantidad_vendida||0) > 0 ? 1 : 0.3,
+              }}>↩ Dev.</button>
           </div>
         </td>
       </tr>
       {expanded && (
         <tr style={{ background:`${gold}07` }}>
-          <td colSpan={14} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
+          <td colSpan={15} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
               {[{ label:'Descripción', campo:'descripcion' },{ label:'Notas', campo:'notas' }].map(({ label, campo }) => (
                 <div key={campo}>
@@ -589,7 +596,7 @@ export default function AdminPage() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:1180 }}>
             <thead style={{ position:'sticky', top:0, zIndex:50, background:cream }}>
               <tr>
-                {['Style #','Tienda','Color','Talla','Cant.','Precio USD','T/C','Mark%','Cargo','Costo MXN','Precio Venta','Utilidad','Estado','Acción'].map((h,i)=>(
+                {['Style #','Tienda','Color','Talla','Disp.','Vend.','Precio USD','T/C','Mark%','Cargo','Costo MXN','Precio Venta','Utilidad','Estado','Acción'].map((h,i)=>(
                   <th key={i} style={{
                     padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
                     letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
