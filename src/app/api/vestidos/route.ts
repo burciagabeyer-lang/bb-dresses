@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       const { data, error } = await supabase
         .from('vestidos')
         .select('*')
-        .ilike('style_number', style.trim())
+        .ilike('style_number', `%${style.trim()}%`)
         .order('color')
 
       if (error) throw error
