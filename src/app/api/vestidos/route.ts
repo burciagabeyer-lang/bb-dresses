@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       // Todos los vestidos para el inventario
       const { data, error } = await supabase
         .from('vestidos')
-        .select(`*, facturas(numero, fecha)`)
+        .select(`*, facturas(numero, fecha), tipo_cambio_custom, markup_custom, cargo_custom`)
         .order('tienda')
         .order('style_number')
         .order('color')
@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { id, ...campos } = await request.json()
     if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
-    const camposValidos = ['style_number','color','talla','cantidad','precio_usd','descripcion','tienda','notas']
+    const camposValidos = ['style_number','color','talla','cantidad','precio_usd','descripcion','tienda','notas','tipo_cambio_custom','markup_custom','cargo_custom']
     const update = Object.fromEntries(Object.entries(campos).filter(([k]) => camposValidos.includes(k)))
     const { error } = await supabase.from('vestidos').update(update).eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

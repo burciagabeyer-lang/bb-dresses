@@ -72,10 +72,17 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
   onToggleExpand: () => void;
 }) {
   const [precio, setPrecio] = useState(String(vestido.precio_usd ?? ''))
-  const usdN        = parseFloat(precio) || 0
-  const costoMXN    = calcCostoMXN(usdN, config)
-  const precioVenta = calcPrecioVenta(usdN, config)
-  const utilidad    = calcUtilidad(usdN, config)
+  const [tc,  setTc]  = useState(String(vestido.tipo_cambio_custom ?? config?.tipo_cambio_usd_mxn ?? ''))
+  const [mk,  setMk]  = useState(String(vestido.markup_custom      ?? config?.markup_porcentaje   ?? ''))
+  const [cgo, setCgo] = useState(String(vestido.cargo_custom       ?? config?.cargo_adicional_mxn ?? ''))
+
+  const usdN   = parseFloat(precio) || 0
+  const tcN    = parseFloat(tc)     || 0
+  const mkN    = parseFloat(mk)     || 0
+  const cgoN   = parseFloat(cgo)    || 0
+  const costoMXN    = usdN * tcN
+  const precioVenta = Math.ceil(costoMXN * (1 + mkN / 100) + cgoN)
+  const utilidad    = precioVenta - costoMXN
 
   function blur(campo: string, val: string) {
     if (String(vestido[campo] ?? '') !== val) onUpdate(vestido.id, campo, val)
@@ -120,14 +127,41 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
             onBlur={e=>blur('precio_usd',e.target.value)}
             onClick={e=>e.stopPropagation()} style={ci} />
         </td>
+        {/* T/C editable */}
+        <td style={{ ...td, minWidth:72 }} onClick={e=>e.stopPropagation()}>
+          <input type="number" step="0.01" value={tc}
+            onChange={e=>setTc(e.target.value)}
+            onBlur={e=>blur('tipo_cambio_custom',e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            style={{ ...ci, width:62, textAlign:'right', color:grayM, fontSize:12 }} />
+        </td>
+        {/* Mark% editable */}
+        <td style={{ ...td, minWidth:65 }} onClick={e=>e.stopPropagation()}>
+          <input type="number" step="1" value={mk}
+            onChange={e=>setMk(e.target.value)}
+            onBlur={e=>blur('markup_custom',e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            style={{ ...ci, width:50, textAlign:'right', color:grayM, fontSize:12 }} />
+        </td>
+        {/* Cargo editable */}
+        <td style={{ ...td, minWidth:80 }} onClick={e=>e.stopPropagation()}>
+          <input type="number" step="1" value={cgo}
+            onChange={e=>setCgo(e.target.value)}
+            onBlur={e=>blur('cargo_custom',e.target.value)}
+            onClick={e=>e.stopPropagation()}
+            style={{ ...ci, width:68, textAlign:'right', color:grayM, fontSize:12 }} />
+        </td>
+        {/* Costo MXN */}
         <td style={{ ...td, minWidth:110 }}>
-          {costoMXN !== null ? fmtMXN(costoMXN) : '—'}
+          {tcN ? fmtMXN(costoMXN) : '—'}
         </td>
+        {/* Precio Venta */}
         <td style={{ ...td, minWidth:110, fontWeight:700 }}>
-          {precioVenta !== null ? fmtMXN(precioVenta) : '—'}
+          {tcN ? fmtMXN(precioVenta) : '—'}
         </td>
+        {/* Utilidad */}
         <td style={{ ...td, minWidth:100, fontWeight:700, color:'#6B7B4A' }}>
-          {utilidad !== null ? fmtMXN(utilidad) : '—'}
+          {tcN ? fmtMXN(utilidad) : '—'}
         </td>
         <td style={{ ...td, minWidth:100 }}>
           <span style={{
@@ -148,7 +182,7 @@ function VestidoRow({ vestido, config, idx, onUpdate, onToggleVendido, expanded,
       </tr>
       {expanded && (
         <tr style={{ background:`${gold}07` }}>
-          <td colSpan={11} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
+          <td colSpan={14} style={{ padding:'12px 16px', borderBottom:`1px solid ${grayL}` }}>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
               {[{ label:'Descripción', campo:'descripcion' },{ label:'Notas', campo:'notas' }].map(({ label, campo }) => (
                 <div key={campo}>
@@ -226,14 +260,23 @@ export default function AdminPage() {
   const vend       = vestidos.filter(v=>v.vendido)
   const piezas     = disp.reduce((s,v)=>s+(parseInt(v.cantidad)||1),0)
   const invertido  = vestidos.reduce((s,v)=>s+(parseFloat(v.precio_usd)||0)*(parseInt(v.cantidad)||1),0)
-  const valorVenta = config ? disp.reduce((s,v)=>{
-    const m = calcPrecioVenta(parseFloat(v.precio_usd)||0,config)
-    return s+(m||0)*(parseInt(v.cantidad)||1)
-  },0) : 0
-  const utilidadTotal = config ? disp.reduce((s,v)=>{
-    const u = calcUtilidad(parseFloat(v.precio_usd)||0,config)
-    return s+(u||0)*(parseInt(v.cantidad)||1)
-  },0) : 0
+  function rowFinancials(v: any) {
+    const usd  = parseFloat(v.precio_usd) || 0
+    const tc   = parseFloat(v.tipo_cambio_custom ?? config?.tipo_cambio_usd_mxn  ?? 0)
+    const mk   = parseFloat(v.markup_custom      ?? config?.markup_porcentaje    ?? 0)
+    const crg  = parseFloat(v.cargo_custom       ?? config?.cargo_adicional_mxn  ?? 0)
+    const costo = usd * tc
+    const venta = Math.ceil(costo * (1 + mk / 100) + crg)
+    return { costo, venta, util: venta - costo }
+  }
+  const valorVenta = disp.reduce((s,v)=>{
+    const { venta } = rowFinancials(v)
+    return s + venta * (parseInt(v.cantidad)||1)
+  },0)
+  const utilidadTotal = disp.reduce((s,v)=>{
+    const { util } = rowFinancials(v)
+    return s + util * (parseInt(v.cantidad)||1)
+  },0)
 
   const HEADER_H = 56
 
@@ -253,7 +296,7 @@ export default function AdminPage() {
 
       {/* Header — nunca se mueve */}
       <header style={{
-        flexShrink:0,
+        flexShrink:0, position:'sticky', top:0, zIndex:100,
         background:cream, borderBottom:`1px solid ${grayL}`,
         height:HEADER_H, display:'flex', alignItems:'center',
         padding:'0 20px', gap:12,
@@ -290,7 +333,7 @@ export default function AdminPage() {
 
       {/* Barra de filtros — nunca se mueve */}
       <div style={{
-        flexShrink:0,
+        flexShrink:0, position:'sticky', top:`${HEADER_H}px`, zIndex:99,
         background:cream, borderBottom:`1px solid ${grayL}`,
         padding:'10px 20px', display:'flex', gap:8, flexWrap:'wrap', alignItems:'center',
       }}>
@@ -336,10 +379,10 @@ export default function AdminPage() {
             <div style={{ fontSize:13 }}>Ajusta los filtros de búsqueda</div>
           </div>
         ) : (
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:940 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:1180 }}>
             <thead style={{ position:'sticky', top:0, zIndex:50, background:cream }}>
               <tr>
-                {['Style #','Tienda','Color','Talla','Cant.','Precio USD','Costo MXN','Precio Venta','Utilidad','Estado','Acción'].map((h,i)=>(
+                {['Style #','Tienda','Color','Talla','Cant.','Precio USD','T/C','Mark%','Cargo','Costo MXN','Precio Venta','Utilidad','Estado','Acción'].map((h,i)=>(
                   <th key={i} style={{
                     padding:'9px 10px', textAlign:'left', fontSize:9, fontWeight:700,
                     letterSpacing:'.1em', textTransform:'uppercase', color:grayM,
@@ -372,10 +415,10 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Modal: Configuración */}
+      {/* Modal: Aplicar a todos */}
       {modalCfg && (
-        <Modal title="Configuración de Precios" onClose={()=>setModalCfg(false)}>
-          <ConfigContent initialConfig={config} onSaved={cfg=>{ setConfig(cfg); setModalCfg(false) }} />
+        <Modal title="Aplicar a todos" onClose={()=>setModalCfg(false)}>
+          <AplicarGlobalContent config={config} onDone={()=>{ setModalCfg(false); load() }} />
         </Modal>
       )}
     </div>
@@ -608,6 +651,62 @@ function ConfigContent({ initialConfig, onSaved }: { initialConfig: any; onSaved
       <button onClick={guardar} disabled={saving}
         style={{ background:gold,border:'none',borderRadius:2,color:white,padding:'13px',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit',width:'100%',opacity:saving?.7:1 }}>
         {saving ? 'Guardando...' : 'Guardar configuración'}
+      </button>
+    </div>
+  )
+}
+
+// ── Modal: Aplicar a todos ─────────────────────────────────────
+function AplicarGlobalContent({ config, onDone }: { config: any; onDone: () => void }) {
+  const [tc,    setTc]    = useState(String(config?.tipo_cambio_usd_mxn  || ''))
+  const [mk,    setMk]    = useState(String(config?.markup_porcentaje    || ''))
+  const [cargo, setCargo] = useState(String(config?.cargo_adicional_mxn  || ''))
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState<string|null>(null)
+  const [done,   setDone]   = useState(false)
+
+  const inp: React.CSSProperties = { background:white, border:`1px solid ${grayL}`, borderRadius:2, color:text, padding:'10px 12px', fontSize:15, width:'100%', fontFamily:'system-ui', outline:'none' }
+  const lbl: React.CSSProperties = { display:'block', fontSize:10, color:grayM, fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:5 }
+
+  async function aplicar() {
+    setSaving(true); setError(null)
+    try {
+      const res = await fetch('/api/vestidos/aplicar-global', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ tipo_cambio:tc, markup:mk, cargo })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setDone(true)
+    } catch(e:any) { setError(e.message) }
+    setSaving(false)
+  }
+
+  if (done) return (
+    <div style={{ textAlign:'center', padding:'28px 0' }}>
+      <div style={{ fontFamily:serif, fontSize:22, marginBottom:8, color:text }}>Valores aplicados</div>
+      <p style={{ color:grayM, marginBottom:24 }}>Todos los vestidos tienen ahora T/C <strong style={{color:gold}}>{tc}</strong>, Markup <strong style={{color:gold}}>{mk}%</strong>, Cargo <strong style={{color:gold}}>{fmtMXN(parseFloat(cargo)||0)}</strong>.</p>
+      <button onClick={onDone} style={{ background:gold,border:'none',borderRadius:2,color:white,padding:'12px 32px',fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:14 }}>
+        Cerrar y actualizar
+      </button>
+    </div>
+  )
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      <div style={{ background:`${terra}10`, border:`1px solid ${terra}44`, borderRadius:2, padding:'10px 14px', color:terra, fontSize:13 }}>
+        ⚠ Esto sobreescribirá los valores individuales de <strong>todos</strong> los vestidos.
+      </div>
+      {error && <div style={{ color:terra, fontSize:12 }}>Error: {error}</div>}
+      {([['T/C (USD → MXN)', tc, setTc], ['Markup / Ganancia (%)', mk, setMk], ['Cargo adicional (MXN)', cargo, setCargo]] as const).map(([label, val, set])=>(
+        <div key={label}>
+          <label style={lbl}>{label}</label>
+          <input type="number" step="0.01" value={val} onChange={e=>(set as any)(e.target.value)} style={inp} />
+        </div>
+      ))}
+      <button onClick={aplicar} disabled={saving}
+        style={{ background:gold,border:'none',borderRadius:2,color:white,padding:'13px',fontWeight:700,fontSize:14,cursor:'pointer',fontFamily:'inherit',opacity:saving?.6:1 }}>
+        {saving ? 'Aplicando...' : 'Aplicar a todos los vestidos'}
       </button>
     </div>
   )
