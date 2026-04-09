@@ -8,14 +8,24 @@ const supabase = createClient(
 
 // GET /api/vestidos?style=YSW-24686
 // GET /api/vestidos?all=true
+// GET /api/vestidos?repair=true  — limpia cantidad_vendida NULL o negativa
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const style = searchParams.get('style')
-  const all   = searchParams.get('all')
+  const style  = searchParams.get('style')
+  const all    = searchParams.get('all')
+  const repair = searchParams.get('repair')
 
   try {
+    if (repair === 'true') {
+      const { error } = await supabase
+        .from('vestidos')
+        .update({ cantidad_vendida: 0 })
+        .or('cantidad_vendida.is.null,cantidad_vendida.lt.0')
+      if (error) throw error
+      return NextResponse.json({ success: true, repaired: true })
+    }
+
     if (style) {
-      // Buscar vestido por style_number
       const { data, error } = await supabase
         .from('vestidos')
         .select('*')
@@ -27,7 +37,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (all === 'true') {
-      // Todos los vestidos para el inventario
       const { data, error } = await supabase
         .from('vestidos')
         .select(`*, facturas(numero, fecha), tipo_cambio_custom, markup_custom, cargo_custom`)
@@ -39,7 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data })
     }
 
-    return NextResponse.json({ error: 'Parámetro requerido: style o all' }, { status: 400 })
+    return NextResponse.json({ error: 'Parámetro requerido: style, all o repair' }, { status: 400 })
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -119,47 +128,24 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// PATCH /api/vestidos — vender o devolver una pieza
-// accion: 'vender'   → cantidad-1, cantidad_vendida+1; vendido=true si cantidad llega a 0
-// accion: 'devolver' → cantidad+1, cantidad_vendida-1; vendido=false
+// PATCH /api/vestidos — vender o devolver via RPC atómica
+// accion: 'vender'   → llama RPC vender_pieza
+// accion: 'devolver' → llama RPC devolver_pieza
 export async function PATCH(request: NextRequest) {
   try {
     const { id, accion } = await request.json()
     if (!id || !accion) return NextResponse.json({ error: 'id y accion requeridos' }, { status: 400 })
 
-    const { data: v, error: readError } = await supabase
-      .from('vestidos')
-      .select('cantidad, cantidad_vendida')
-      .eq('id', id)
-      .single()
-    if (readError) throw readError
-
     if (accion === 'vender') {
-      if (v.cantidad <= 0) return NextResponse.json({ error: 'Sin disponibles' }, { status: 400 })
-      const nuevaCantidad = v.cantidad - 1
-      const nuevaVendida  = (v.cantidad_vendida || 0) + 1
-      const { error } = await supabase.from('vestidos').update({
-        cantidad:         nuevaCantidad,
-        cantidad_vendida: nuevaVendida,
-        vendido:          nuevaCantidad === 0,
-        vendido_at:       nuevaCantidad === 0 ? new Date().toISOString() : null,
-      }).eq('id', id)
-      if (error) throw error
-      return NextResponse.json({ success: true, cantidad: nuevaCantidad, cantidad_vendida: nuevaVendida, vendido: nuevaCantidad === 0 })
+      const { data, error } = await supabase.rpc('vender_pieza', { p_id: id })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ success: true, ...data })
     }
 
     if (accion === 'devolver') {
-      if ((v.cantidad_vendida || 0) <= 0) return NextResponse.json({ error: 'Sin vendidas' }, { status: 400 })
-      const nuevaCantidad = v.cantidad + 1
-      const nuevaVendida  = v.cantidad_vendida - 1
-      const { error } = await supabase.from('vestidos').update({
-        cantidad:         nuevaCantidad,
-        cantidad_vendida: nuevaVendida,
-        vendido:          false,
-        vendido_at:       null,
-      }).eq('id', id)
-      if (error) throw error
-      return NextResponse.json({ success: true, cantidad: nuevaCantidad, cantidad_vendida: nuevaVendida, vendido: false })
+      const { data, error } = await supabase.rpc('devolver_pieza', { p_id: id })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ success: true, ...data })
     }
 
     return NextResponse.json({ error: 'accion debe ser vender o devolver' }, { status: 400 })
