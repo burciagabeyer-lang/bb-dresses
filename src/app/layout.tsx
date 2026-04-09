@@ -1,8 +1,10 @@
-﻿import type { Metadata } from 'next'
+import type { Metadata } from 'next'
+
 export const metadata: Metadata = {
   title: 'BB Dresses',
   description: 'Sistema de inventario de vestidos de fiesta',
 }
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
